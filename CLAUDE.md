@@ -72,6 +72,8 @@ introduced.
 ### TODO (later phases, not started)
 - Invitation flow: tokens, accepted by the invited user, membership created by a
   SECURITY DEFINER function. Until then an organization has only its signup owner.
+- Payment corrections: payments cannot be updated or deleted from the API. A mistake
+  must be corrected with a reversal entry (design and build later).
 - Ownership transfer and account deletion: today the last owner cannot leave or be
   deleted (the DF020 trigger also blocks the `auth.users` cascade).
 
