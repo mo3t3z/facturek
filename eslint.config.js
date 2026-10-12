@@ -19,4 +19,9 @@ export default tseslint.config(
       globals: globals.browser,
     },
   },
+  {
+    // Test helpers mix components and plain functions; fast refresh does not apply to tests.
+    files: ['src/test/**', '**/*.test.{ts,tsx}'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 )
