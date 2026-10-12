@@ -146,6 +146,30 @@ begin
 end;
 $$;
 
+-- Turns a draft into a complete 'sent' document BY HAND, the way a privileged role could,
+-- without going through finalize_document(): a fixture for tests that need an issued
+-- document with a chosen number. The values are placeholders.
+create or replace function tests.mark_sent(
+  p_document_id uuid,
+  p_number integer,
+  p_year integer default 2026
+)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.documents
+  set status = 'sent',
+      number = p_number,
+      year = p_year,
+      issue_date = coalesce(issue_date, make_date(p_year, 1, 1)),
+      seller_name = 'Test seller',
+      buyer_name = 'Test buyer',
+      retenue_enabled = false
+  where id = p_document_id;
+$$;
+
 -- Calls finalize_document() as the given user and returns the number it assigned.
 -- Leaves no impersonation behind. Use it only where success is expected.
 create or replace function tests.finalize_as(p_email text, p_document_id uuid)

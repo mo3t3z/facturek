@@ -27,12 +27,52 @@ select is_empty(
 );
 select is_empty(
   $$ select r.rolname, p.privilege
-     from (values ('anon'), ('authenticated')) r (rolname)
+     from (values ('anon'), ('authenticated'), ('service_role')) r (rolname)
      cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p (privilege)
      where has_table_privilege(r.rolname, 'public.document_counters', p.privilege)
         or (p.privilege in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
             and has_any_column_privilege(r.rolname, 'public.document_counters', p.privilege)) $$,
-  'anon and authenticated have no privilege of any kind on document_counters'
+  'anon, authenticated and service_role have no privilege of any kind on document_counters'
+);
+
+-- Guard triggers: present, enabled, and their functions callable by no API role.
+select bag_eq(
+  $$ select c.relname::text, t.tgname::text
+     from pg_trigger t
+     join pg_class c on c.oid = t.tgrelid
+     join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not t.tgisinternal
+       and c.relname in ('documents', 'document_items', 'payments') $$,
+  $$ values ('documents', 'guard_documents'),
+            ('documents', 'guard_document_conversion'),
+            ('documents', 'set_updated_at'),
+            ('document_items', 'guard_document_items'),
+            ('document_items', 'set_updated_at'),
+            ('payments', 'guard_payments') $$,
+  'documents, document_items and payments carry exactly the expected triggers'
+);
+select is_empty(
+  $$ select c.relname::text, t.tgname::text
+     from pg_trigger t
+     join pg_class c on c.oid = t.tgrelid
+     join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not t.tgisinternal and t.tgenabled <> 'O' $$,
+  'no trigger in public is disabled'
+);
+select is_empty(
+  $$ select p.proname::text, r.rolname
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     cross join (values ('anon'), ('authenticated'), ('service_role')) r (rolname)
+     where n.nspname = 'private' and p.prorettype = 'trigger'::regtype
+       and has_function_privilege(r.rolname, p.oid, 'EXECUTE') $$,
+  'no API role can execute a trigger function directly'
+);
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'private' and p.prosecdef
+     and p.proname in ('guard_documents', 'guard_document_conversion', 'guard_document_items', 'guard_payments')),
+  4, 'the four document guard functions are SECURITY DEFINER'
 );
 
 select is_empty(
