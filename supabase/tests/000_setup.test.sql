@@ -40,8 +40,34 @@ as $$
   returning id;
 $$;
 
--- Creates an auth user plus what an account needs: profile, organization (user = owner)
--- and an empty tax_settings row. Remembers 'user:<email>' and, if given, p_org_key.
+-- A signup exactly as Supabase Auth performs it: one INSERT into auth.users and nothing
+-- else. Everything an account needs is created by the on_auth_user_created trigger.
+-- Remembers 'user:<email>'.
+create or replace function tests.signup(p_email text, p_metadata jsonb default '{}'::jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  )
+  values (
+    '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated', p_email, '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, p_metadata, now(), now()
+  );
+  perform tests.remember('user:' || p_email, v_user_id);
+  return v_user_id;
+end;
+$$;
+
+-- Signs a user up (full_name = the part of the email before '@') and renames the
+-- organization the signup trigger created for them. Remembers 'user:<email>' and, if
+-- given, p_org_key.
 create or replace function tests.create_user(
   p_email text,
   p_organization_name text,
@@ -53,24 +79,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_user_id uuid := gen_random_uuid();
+  v_user_id uuid;
   v_org_id uuid;
 begin
-  insert into auth.users (
-    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-  )
-  values (
-    '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated', p_email, '',
-    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()
-  );
-  perform tests.remember('user:' || p_email, v_user_id);
+  v_user_id := tests.signup(p_email, jsonb_build_object('full_name', split_part(p_email, '@', 1)));
 
-  insert into public.profiles (id, full_name) values (v_user_id, split_part(p_email, '@', 1));
-  insert into public.organizations (name) values (p_organization_name) returning id into v_org_id;
-  insert into public.organization_members (organization_id, user_id, role)
-  values (v_org_id, v_user_id, 'owner');
-  insert into public.tax_settings (organization_id) values (v_org_id);
+  -- STRICT: fails loudly if the trigger did not create exactly one membership.
+  select m.organization_id into strict v_org_id
+  from public.organization_members m
+  where m.user_id = v_user_id;
+
+  update public.organizations set name = p_organization_name where id = v_org_id;
 
   if p_org_key is not null then
     perform tests.remember(p_org_key, v_org_id);

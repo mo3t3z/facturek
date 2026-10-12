@@ -218,8 +218,41 @@ select bag_eq(
   $$ select p.proname::text
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE') $$,
-  $$ values ('finalize_document') $$,
-  'authenticated can execute exactly one function in public: finalize_document'
+  $$ values ('finalize_document'), ('ensure_my_account') $$,
+  'authenticated can execute exactly two functions in public: finalize_document and ensure_my_account'
+);
+select ok(
+  not has_function_privilege('anon', 'public.ensure_my_account()', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.ensure_my_account()', 'EXECUTE'),
+  'neither anon nor service_role can execute ensure_my_account'
+);
+select is(
+  (select p.prosecdef from pg_proc p where p.oid = 'public.ensure_my_account()'::regprocedure),
+  true, 'ensure_my_account is SECURITY DEFINER'
+);
+select is(
+  (select p.pronargs::int from pg_proc p where p.oid = 'public.ensure_my_account()'::regprocedure),
+  0, 'ensure_my_account takes no parameter: it can only act on the caller'
+);
+
+-- Signup trigger.
+select is(
+  (select t.tgenabled::text || ' ' || t.tgfoid::regprocedure::text
+   from pg_trigger t
+   where t.tgrelid = 'auth.users'::regclass and not t.tgisinternal and t.tgname = 'on_auth_user_created'),
+  'O private.handle_new_user()',
+  'the signup trigger exists on auth.users, is enabled and calls private.handle_new_user'
+);
+select is(
+  (select p.prosecdef from pg_proc p where p.oid = 'private.handle_new_user()'::regprocedure),
+  true, 'handle_new_user is SECURITY DEFINER'
+);
+select is_empty(
+  $$ select f.name, r.rolname
+     from (values ('private.handle_new_user()'), ('private.provision_account(uuid, text)')) f (name)
+     cross join (values ('anon'), ('authenticated'), ('service_role')) r (rolname)
+     where has_function_privilege(r.rolname, f.name::regprocedure, 'EXECUTE') $$,
+  'no API role can execute handle_new_user or provision_account directly'
 );
 select ok(
   not has_function_privilege('anon', 'public.finalize_document(uuid)', 'EXECUTE')
@@ -287,6 +320,7 @@ select throws_ok(
   $$ select public.finalize_document(tests.id('doc_a')) $$,
   '42501', null, 'anon cannot call finalize_document'
 );
+select throws_ok('select public.ensure_my_account()', '42501', null, 'anon cannot call ensure_my_account');
 select throws_ok('select * from public.document_counters', '42501', null, 'anon cannot read document_counters');
 select throws_ok(
   $$ insert into public.document_counters (organization_id, type, year, last_number)
