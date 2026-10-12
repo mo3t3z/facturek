@@ -25,6 +25,12 @@ values (tests.id('org_a'), tests.id('doc_a_sent'), 20.000, current_date, 'cheque
 returning tests.remember('payment_a', id);
 insert into public.clients (organization_id, name) values (tests.id('org_a'), 'Unused client')
 returning tests.remember('client_a_unused', id);
+insert into public.clients (organization_id, name) values (tests.id('org_a'), 'Second client')
+returning tests.remember('client_a2', id);
+-- Devis: one draft, one sent (numbers are per type, so number 1 is free for devis).
+select tests.create_draft('devis_a', tests.id('org_a'), tests.id('client_a'), 'devis');
+select tests.create_draft('devis_a_sent', tests.id('org_a'), tests.id('client_a'), 'devis');
+update public.documents set status = 'sent', number = 1, year = 2026 where id = tests.id('devis_a_sent');
 
 select tests.authenticate_as('alice@test.local');
 
@@ -32,8 +38,8 @@ select tests.authenticate_as('alice@test.local');
 select is_empty($$ select 1 from public.documents where organization_id = tests.id('org_b') $$, 'A cannot read B''s documents');
 select is_empty($$ select 1 from public.document_items where organization_id = tests.id('org_b') $$, 'A cannot read B''s items');
 select is_empty($$ select 1 from public.payments where organization_id = tests.id('org_b') $$, 'A cannot read B''s payments');
-select is((select count(*)::int from public.documents), 4, 'A reads exactly their own 4 documents');
-select is((select count(*)::int from public.document_items), 4, 'A reads exactly their own 4 items');
+select is((select count(*)::int from public.documents), 6, 'A reads exactly their own 6 documents');
+select is((select count(*)::int from public.document_items), 6, 'A reads exactly their own 6 items');
 select is((select count(*)::int from public.payments), 1, 'A reads exactly their own payment');
 
 -- 2. CROSS-ORG ISOLATION: WRITE ----------------------------------------------------------
@@ -76,7 +82,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_a'), tests.id('doc_b_sent'), 1, current_date, 'cash') $$,
-  '23503', null, 'a payment cannot be attached to another org''s document by lying about organization_id');
+  '42501', null, 'a payment cannot be attached to another org''s document by lying about organization_id');
 select throws_ok(
   $$ delete from public.clients where id = tests.id('client_a') $$,
   '23503', null, 'a client referenced by a document cannot be deleted');
@@ -130,6 +136,18 @@ select lives_ok(
   $$ update public.documents set converted_from = tests.id('doc_a_other') where id = tests.id('doc_a') $$,
   'converted_from can reference a document of the same organization');
 
+-- 4b. CONTENT of a non-draft document cannot be changed from the API ----------------------
+-- RLS hides the row from UPDATE, so each statement affects nothing.
+select is_empty($$ update public.documents set client_id = tests.id('client_a2') where id = tests.id('doc_a_sent') returning 1 $$, 'sent document: client_id cannot be changed');
+select is_empty($$ update public.documents set issue_date = date '2020-01-01' where id = tests.id('doc_a_sent') returning 1 $$, 'sent document: issue_date cannot be changed');
+select is_empty($$ update public.documents set due_date = date '2030-01-01' where id = tests.id('doc_a_sent') returning 1 $$, 'sent document: due_date cannot be changed');
+select is_empty($$ update public.documents set notes = 'edited after sending' where id = tests.id('doc_a_sent') returning 1 $$, 'sent document: notes cannot be changed');
+select is_empty($$ update public.documents set converted_from = tests.id('devis_a_sent') where id = tests.id('doc_a_sent') returning 1 $$, 'sent document: converted_from cannot be changed');
+select results_eq(
+  $$ select client_id, issue_date, due_date, notes, converted_from from public.documents where id = tests.id('doc_a_sent') $$,
+  $$ select tests.id('client_a'), null::date, null::date, null::text, null::uuid $$,
+  'the sent document''s content is unchanged');
+
 -- 5. DRAFT-ONLY RULES ---------------------------------------------------------------------
 select throws_ok(
   $$ insert into public.document_items (organization_id, document_id, description, quantity, unit_price, tva_rate)
@@ -170,11 +188,24 @@ select is_empty(
   $$ select 1 from public.document_items where id = tests.id('doc_a_other:item') $$,
   'deleting a draft deletes its items');
 
--- 6. PAYMENTS are append-only from the API ------------------------------------------------
+-- 6. PAYMENTS: only on a non-draft facture, and append-only from the API -------------------
 select lives_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_a'), tests.id('doc_a_sent'), 50.500, current_date, 'virement') $$,
-  'a member can record a payment');
+  'a payment can be recorded on a sent facture');
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('doc_a'), 1, current_date, 'cash') $$,
+  '42501', null, 'a payment cannot be recorded on a draft facture');
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('devis_a_sent'), 1, current_date, 'cash') $$,
+  '42501', null, 'a payment cannot be recorded on a sent devis');
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('devis_a'), 1, current_date, 'cash') $$,
+  '42501', null, 'a payment cannot be recorded on a draft devis');
+select is((select count(*)::int from public.payments), 2, 'only the accepted payment was added');
 select throws_ok($$ update public.payments set amount = 1 where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be updated from the API');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be deleted from the API');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_b') $$, '42501', null, 'another org''s payment cannot be deleted either');
@@ -233,9 +264,23 @@ select throws_ok(
 select throws_ok(
   $$ update public.documents set organization_id = tests.id('org_b') where id = tests.id('doc_a') $$,
   '23503', null, 'FK: a document cannot change organization while it has a client, items or payments');
+-- number is NULL exactly when status is 'draft': both inconsistent states are rejected.
 select throws_ok(
   $$ update public.documents set status = 'sent' where id = tests.id('doc_a') $$,
-  '23514', null, 'CHECK: a document cannot leave draft without a number');
+  '23514', 'new row for relation "documents" violates check constraint "documents_numbered_unless_draft"',
+  'CHECK: a non-draft document without a number is rejected');
+select throws_ok(
+  $$ update public.documents set number = 9, year = 2026 where id = tests.id('doc_a') $$,
+  '23514', 'new row for relation "documents" violates check constraint "documents_draft_has_no_number"',
+  'CHECK: a draft with a number is rejected');
+select throws_ok(
+  $$ update public.documents set status = 'draft' where id = tests.id('doc_a_sent') $$,
+  '23514', 'new row for relation "documents" violates check constraint "documents_draft_has_no_number"',
+  'CHECK: a numbered document cannot go back to draft while keeping its number');
+select throws_ok(
+  $$ insert into public.documents (organization_id, type, status) values (tests.id('org_a'), 'facture', 'paid') $$,
+  '23514', 'new row for relation "documents" violates check constraint "documents_numbered_unless_draft"',
+  'CHECK: a document cannot be inserted as paid without a number');
 select throws_ok(
   $$ update public.documents set number = 9 where id = tests.id('doc_a') $$,
   '23514', null, 'CHECK: number and year go together');
