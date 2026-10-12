@@ -39,7 +39,7 @@ create policy document_items_insert on public.document_items
     and exists (
       select 1
       from public.documents d
-      where d.id = document_id
+      where d.id = document_items.document_id
         and d.organization_id = document_items.organization_id
         and d.status = 'draft'
     )
@@ -52,7 +52,7 @@ create policy document_items_update on public.document_items
     and exists (
       select 1
       from public.documents d
-      where d.id = document_id
+      where d.id = document_items.document_id
         and d.organization_id = document_items.organization_id
         and d.status = 'draft'
     )
@@ -62,7 +62,7 @@ create policy document_items_update on public.document_items
     and exists (
       select 1
       from public.documents d
-      where d.id = document_id
+      where d.id = document_items.document_id
         and d.organization_id = document_items.organization_id
         and d.status = 'draft'
     )
@@ -75,7 +75,7 @@ create policy document_items_delete on public.document_items
     and exists (
       select 1
       from public.documents d
-      where d.id = document_id
+      where d.id = document_items.document_id
         and d.organization_id = document_items.organization_id
         and d.status = 'draft'
     )
@@ -96,7 +96,7 @@ create policy payments_insert on public.payments
     and exists (
       select 1
       from public.documents d
-      where d.id = document_id
+      where d.id = payments.document_id
         and d.organization_id = payments.organization_id
         and d.type = 'facture'
         and d.status <> 'draft'
