@@ -38,6 +38,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   their parent document's org by a composite foreign key.
 - Frontend uses the anon key only. The service role key never appears in client code,
   committed env files, or the bundle. `VITE_` vars: public URL and anon key only.
+- NEVER expose the service role key to any client: not in the SPA, not in a `VITE_`
+  variable, not in a mobile app, not in a committed file. It bypasses RLS entirely.
 - Route guards are UX only. Never rely on them for protection.
 - SECURITY DEFINER functions: `set search_path = ''`, fully qualified names,
   `REVOKE ... FROM public`, `GRANT EXECUTE` only to the roles that need it.
@@ -106,8 +108,15 @@ introduced.
   mistake must be corrected with a reversal entry (design and build later).
 - Credit notes (avoirs): the only way to correct or cancel a numbered facture. Until
   they exist a numbered facture cannot be cancelled at all.
-- Status changes after `sent` (mark a facture paid, cancel a devis) have no API path yet:
-  the API role cannot write `status`. They need SECURITY DEFINER functions.
+- Status changes after `sent` have no API path yet (the API role cannot write `status`).
+  Phase 2: `sent -> paid` for a facture and cancelling a devis need SECURITY DEFINER
+  functions, tied to the document totals and the sum of its payments (a facture is
+  "paid" when its payments cover its total, not when someone says so).
+- A devis can currently be converted into several factures (`converted_from` has no
+  uniqueness rule). Decide in phase 2 whether that is wanted.
+- The DF0xx codes must be mapped to French messages in the frontend (i18n keys), all of
+  them, including DF014 (items of an issued document) and DF016 (payment refused), which
+  the API role now receives instead of a generic 42501.
 - Have an accountant check the status transition map and the two date rules of
   `finalize_document()`.
 - Ownership transfer and account deletion: today the last owner cannot leave or be
