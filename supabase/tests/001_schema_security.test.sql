@@ -62,6 +62,13 @@ select is_empty(
      where schemaname = 'public' and tablename = 'organization_members' and cmd in ('INSERT', 'ALL') $$,
   'organization_members has no INSERT policy'
 );
+select bag_eq(
+  $$ select c.column_name::text from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = 'tax_settings'
+       and has_column_privilege('authenticated', 'public.tax_settings', c.column_name, 'UPDATE') $$,
+  $$ values ('default_tva_rate'), ('timbre_fiscal'), ('retenue_enabled'), ('retenue_rate'), ('retenue_threshold') $$,
+  'authenticated can UPDATE only the editable columns of tax_settings (not organization_id)'
+);
 select ok(
   not has_table_privilege('authenticated', 'public.tax_settings', 'INSERT')
   and not has_table_privilege('authenticated', 'public.tax_settings', 'DELETE'),
