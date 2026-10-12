@@ -38,8 +38,10 @@ create table public.documents (
   constraint documents_converted_from_fk foreign key (organization_id, converted_from)
     references public.documents (organization_id, id) on delete restrict,
 
-  -- A document can only leave 'draft' with a number.
+  -- number is NULL exactly when the document is a draft:
+  -- a document can only leave 'draft' with a number, and a draft never carries one.
   constraint documents_numbered_unless_draft check (status = 'draft' or number is not null),
+  constraint documents_draft_has_no_number check (status <> 'draft' or number is null),
   constraint documents_number_year_together check ((number is null) = (year is null)),
   constraint documents_due_after_issue check (
     due_date is null or issue_date is null or due_date >= issue_date
