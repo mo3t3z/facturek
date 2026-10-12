@@ -42,7 +42,9 @@ grant select on table public.organizations to authenticated;
 grant update (name, matricule_fiscal, address, email, phone) on table public.organizations to authenticated;
 grant select on table public.profiles to authenticated;
 grant update (full_name) on table public.profiles to authenticated;
-grant select, insert, delete on table public.organization_members to authenticated;
+-- No INSERT: memberships are only created by SECURITY DEFINER functions (signup now, an
+-- invitation flow with tokens later), never directly from the API.
+grant select, delete on table public.organization_members to authenticated;
 grant update (role) on table public.organization_members to authenticated;
 
 create trigger set_updated_at before update on public.organizations

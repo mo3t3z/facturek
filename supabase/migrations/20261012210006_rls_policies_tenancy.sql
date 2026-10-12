@@ -5,8 +5,10 @@
 --
 -- Role matrix
 --   member : read org data; write clients
---   admin  : member + tax_settings + manage members (never owners, never grant owner)
---   owner  : admin + organization details + manage owners
+--   admin  : member + tax_settings + change role / remove members (never owners, never
+--            grant owner)
+--   owner  : admin + organization details + change role / remove owners
+-- Nobody can INSERT a membership from the API.
 -- The "last owner" rule depends on other rows, so it lives in a trigger, not here.
 
 -- organizations -------------------------------------------------------------------------
@@ -35,16 +37,8 @@ create policy organization_members_select on public.organization_members
   for select to authenticated
   using (private.is_org_member(organization_id));
 
--- Owners can add anyone with any role; admins can add admins/members but never an owner.
-create policy organization_members_insert on public.organization_members
-  for insert to authenticated
-  with check (
-    private.has_org_role(organization_id, array['owner']::public.org_role[])
-    or (
-      private.has_org_role(organization_id, array['admin']::public.org_role[])
-      and role <> 'owner'
-    )
-  );
+-- No insert policy (and no INSERT privilege): nobody can add a membership from the API, not
+-- even an owner. Otherwise any user could be pulled into an organization without consent.
 
 -- USING looks at the existing row (admins cannot touch an owner's row);
 -- WITH CHECK looks at the new row (admins cannot grant owner). Members match neither.
