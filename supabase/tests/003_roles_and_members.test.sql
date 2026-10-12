@@ -1,8 +1,15 @@
--- Same-org access by role: alice = owner, carol = admin, dave = member of org_a.
+-- Same-org access by role in org_a:
+--   alice = owner, carol = admin, erin = admin, dave = member, frank = member.
 begin;
 select * from no_plan();
 
 select tests.seed();
+select tests.create_user('erin@test.local', 'Erin solo');
+select tests.create_user('frank@test.local', 'Frank solo');
+insert into public.organization_members (organization_id, user_id, role)
+values
+  (tests.id('org_a'), tests.id('user:erin@test.local'), 'admin'),
+  (tests.id('org_a'), tests.id('user:frank@test.local'), 'member');
 
 -- MEMBER --------------------------------------------------------------------------------
 select tests.authenticate_as('dave@test.local');
@@ -11,8 +18,8 @@ select isnt_empty($$ select 1 from public.clients where id = tests.id('client_a'
 select isnt_empty($$ select 1 from public.tax_settings where organization_id = tests.id('org_a') $$, 'member reads tax settings');
 select isnt_empty($$ select 1 from public.organizations where id = tests.id('org_a') $$, 'member reads the organization');
 select is(
-  (select count(*)::int from public.organization_members where organization_id = tests.id('org_a')), 3,
-  'member sees the 3 members of the shared org');
+  (select count(*)::int from public.organization_members where organization_id = tests.id('org_a')), 5,
+  'member sees the 5 members of the shared org');
 select isnt_empty($$ select 1 from public.profiles where id = tests.id('user:alice@test.local') $$, 'member reads a colleague''s profile');
 select is_empty($$ select 1 from public.profiles where id = tests.id('user:bob@test.local') $$, 'member cannot read a stranger''s profile');
 select is_empty($$ select 1 from public.clients where organization_id = tests.id('org_b') $$, 'member of A still cannot read B');
@@ -63,8 +70,16 @@ select throws_ok(
   '42501', null, 'member cannot add themselves to another organization');
 select is_empty(
   $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:frank@test.local') returning 1 $$,
+  'member cannot remove another member');
+select is_empty(
+  $$ delete from public.organization_members
      where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') returning 1 $$,
-  'member cannot remove someone else');
+  'member cannot remove an admin');
+select is_empty(
+  $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
+  'member cannot remove an owner');
 
 -- ADMIN ---------------------------------------------------------------------------------
 select tests.authenticate_as('carol@test.local');
@@ -75,24 +90,38 @@ select isnt_empty(
 select is_empty(
   $$ update public.organizations set name = 'renamed' where id = tests.id('org_a') returning 1 $$,
   'admin cannot update the organization');
-select isnt_empty(
+
+-- Admins cannot change any role.
+select is_empty(
   $$ update public.organization_members set role = 'admin'
      where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') returning 1 $$,
-  'admin can promote a member to admin');
-select isnt_empty(
-  $$ update public.organization_members set role = 'member'
+  'admin cannot promote a member to admin');
+select is_empty(
+  $$ update public.organization_members set role = 'owner'
      where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') returning 1 $$,
-  'admin can demote an admin to member');
-
--- Privilege escalation attempts by an admin.
-select throws_ok(
+  'admin cannot grant owner to a member');
+select is_empty(
   $$ update public.organization_members set role = 'owner'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') returning 1 $$,
+  'admin cannot grant owner to themselves');
+select is_empty(
+  $$ update public.organization_members set role = 'member'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:erin@test.local') returning 1 $$,
+  'admin cannot demote another admin');
+select is_empty(
+  $$ update public.organization_members set role = 'member'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') returning 1 $$,
+  'admin cannot change their own role');
+select is_empty(
+  $$ update public.organization_members set role = 'member'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
+  'admin cannot demote an owner');
+select throws_ok(
+  $$ update public.organization_members set user_id = tests.id('user:bob@test.local')
      where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') $$,
-  '42501', null, 'admin cannot grant owner to someone else');
-select throws_ok(
-  $$ update public.organization_members set role = 'owner'
-     where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') $$,
-  '42501', null, 'admin cannot grant owner to themselves');
+  '42501', null, 'membership keys are not updatable from the API');
+
+-- Admins cannot add anyone.
 select throws_ok(
   $$ insert into public.organization_members (organization_id, user_id, role)
      values (tests.id('org_a'), tests.id('user:bob@test.local'), 'owner') $$,
@@ -105,18 +134,20 @@ select throws_ok(
   $$ insert into public.organization_members (organization_id, user_id, role)
      values (tests.id('org_b'), tests.id('user:carol@test.local'), 'admin') $$,
   '42501', null, 'admin cannot add themselves to another organization');
-select is_empty(
-  $$ update public.organization_members set role = 'member'
-     where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
-  'admin cannot demote an owner');
+
+-- Admins can remove plain members only.
 select is_empty(
   $$ delete from public.organization_members
      where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
   'admin cannot remove an owner');
-select throws_ok(
-  $$ update public.organization_members set user_id = tests.id('user:bob@test.local')
-     where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') $$,
-  '42501', null, 'membership keys are not updatable from the API');
+select is_empty(
+  $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:erin@test.local') returning 1 $$,
+  'admin cannot remove another admin');
+select isnt_empty(
+  $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:frank@test.local') returning 1 $$,
+  'admin can remove a plain member');
 
 -- OWNER ---------------------------------------------------------------------------------
 select tests.authenticate_as('alice@test.local');
@@ -136,6 +167,20 @@ select throws_ok(
   $$ insert into public.organization_members (organization_id, user_id, role)
      values (tests.id('org_b'), tests.id('user:alice@test.local'), 'owner') $$,
   '42501', null, 'owner cannot add themselves to another organization');
+
+select isnt_empty(
+  $$ update public.organization_members set role = 'admin'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') returning 1 $$,
+  'owner can promote a member to admin');
+select isnt_empty(
+  $$ update public.organization_members set role = 'member'
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') returning 1 $$,
+  'owner can demote an admin to member');
+select isnt_empty(
+  $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:erin@test.local') returning 1 $$,
+  'owner can remove an admin');
+
 select throws_ok(
   $$ update public.organization_members set role = 'admin'
      where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') $$,
@@ -160,13 +205,18 @@ select throws_ok(
      where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') $$,
   'DF020', null, 'the new last owner cannot leave either');
 
--- A plain member may leave.
+-- Self-leave: a member and an admin may both leave.
 select tests.authenticate_as('dave@test.local');
 select isnt_empty(
   $$ delete from public.organization_members
      where organization_id = tests.id('org_a') and user_id = tests.id('user:dave@test.local') returning 1 $$,
   'a member can leave the organization');
 select is_empty($$ select 1 from public.clients where organization_id = tests.id('org_a') $$, 'after leaving, access is gone');
+select tests.authenticate_as('alice@test.local');
+select isnt_empty(
+  $$ delete from public.organization_members
+     where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
+  'an admin can leave the organization');
 
 -- The rules hold below RLS too (e.g. service role / SQL editor).
 select tests.clear_auth();
@@ -183,9 +233,10 @@ select throws_ok(
 select throws_ok(
   $$ update public.clients set organization_id = tests.id('org_b') where id = tests.id('client_a') $$,
   'DF040', null, 'even without RLS a client cannot be moved to another organization');
-select is(
-  (select count(*)::int from public.organization_members where organization_id = tests.id('org_a') and role = 'owner'), 1,
-  'org_a still has exactly one owner');
+select results_eq(
+  $$ select user_id, role::text from public.organization_members where organization_id = tests.id('org_a') $$,
+  $$ select tests.id('user:carol@test.local'), 'owner' $$,
+  'org_a ends with exactly one member: its single owner');
 
 select * from finish();
 rollback;

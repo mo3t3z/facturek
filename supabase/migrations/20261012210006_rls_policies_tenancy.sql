@@ -5,9 +5,9 @@
 --
 -- Role matrix
 --   member : read org data; write clients
---   admin  : member + tax_settings + change role / remove members (never owners, never
---            grant owner)
---   owner  : admin + organization details + change role / remove owners
+--   admin  : member + tax_settings + remove plain members (not admins, not owners)
+--   owner  : admin + organization details + change any role + remove anyone
+-- Anyone may leave an organization (delete their own membership).
 -- Nobody can INSERT a membership from the API.
 -- The "last owner" rule depends on other rows, so it lives in a trigger, not here.
 
@@ -40,33 +40,21 @@ create policy organization_members_select on public.organization_members
 -- No insert policy (and no INSERT privilege): nobody can add a membership from the API, not
 -- even an owner. Otherwise any user could be pulled into an organization without consent.
 
--- USING looks at the existing row (admins cannot touch an owner's row);
--- WITH CHECK looks at the new row (admins cannot grant owner). Members match neither.
+-- Role changes: owners only, for the existing row (USING) and the new row (WITH CHECK).
 create policy organization_members_update on public.organization_members
   for update to authenticated
-  using (
-    private.has_org_role(organization_id, array['owner']::public.org_role[])
-    or (
-      private.has_org_role(organization_id, array['admin']::public.org_role[])
-      and role <> 'owner'
-    )
-  )
-  with check (
-    private.has_org_role(organization_id, array['owner']::public.org_role[])
-    or (
-      private.has_org_role(organization_id, array['admin']::public.org_role[])
-      and role <> 'owner'
-    )
-  );
+  using (private.has_org_role(organization_id, array['owner']::public.org_role[]))
+  with check (private.has_org_role(organization_id, array['owner']::public.org_role[]));
 
--- Anyone may leave (their own row); the last-owner trigger still applies.
+-- Removal: an owner may remove anyone; an admin may remove plain members only; anyone may
+-- leave (their own row). The last-owner trigger still applies to all three cases.
 create policy organization_members_delete on public.organization_members
   for delete to authenticated
   using (
     private.has_org_role(organization_id, array['owner']::public.org_role[])
     or (
       private.has_org_role(organization_id, array['admin']::public.org_role[])
-      and role <> 'owner'
+      and role = 'member'
     )
     or user_id = (select auth.uid())
   );
