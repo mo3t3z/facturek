@@ -209,7 +209,10 @@ isOneToOne: true
             [_ in never]: never
           }
           Functions: {
-            "finalize_document":
+            "ensure_my_account":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
+"finalize_document":
 { Args: { "p_document_id": string }; Returns: {
               "buyer_address": string | null,
 "buyer_matricule_fiscal": string | null,
