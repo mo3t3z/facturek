@@ -43,6 +43,58 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"document_items": {
+                  Row: {
+                    "created_at": string,"description": string,"document_id": string,"id": string,"organization_id": string,"position": number,"quantity": number,"tva_rate": number,"unit_price": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"description": string,"document_id": string,"id"?: string,"organization_id": string,"position"?: number,"quantity": number,"tva_rate": number,"unit_price": number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"description"?: string,"document_id"?: string,"id"?: string,"organization_id"?: string,"position"?: number,"quantity"?: number,"tva_rate"?: number,"unit_price"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_items_document_fk"
+      columns: ["organization_id","document_id"]
+isOneToOne: false
+      referencedRelation: "documents"
+      referencedColumns: ["organization_id","id"]
+    }
+                  ]
+                },"documents": {
+                  Row: {
+                    "client_id": string | null,"converted_from": string | null,"created_at": string,"currency": string,"due_date": string | null,"id": string,"issue_date": string | null,"notes": string | null,"number": number | null,"organization_id": string,"status": Database["public"]['Enums']["document_status"],"type": Database["public"]['Enums']["document_type"],"updated_at": string,"year": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id": string,"status"?: Database["public"]['Enums']["document_status"],"type": Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                  }
+                  Update: {
+                    "client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id"?: string,"status"?: Database["public"]['Enums']["document_status"],"type"?: Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "documents_client_fk"
+      columns: ["organization_id","client_id"]
+isOneToOne: false
+      referencedRelation: "clients"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "documents_converted_from_fk"
+      columns: ["organization_id","converted_from"]
+isOneToOne: false
+      referencedRelation: "documents"
+      referencedColumns: ["organization_id","id"]
+    },{
+      foreignKeyName: "documents_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"organization_id": string,"role": Database["public"]['Enums']["org_role"],"user_id": string
@@ -76,6 +128,26 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"payments": {
+                  Row: {
+                    "amount": number,"created_at": string,"document_id": string,"id": string,"method": Database["public"]['Enums']["payment_method"],"organization_id": string,"paid_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount": number,"created_at"?: string,"document_id": string,"id"?: string,"method": Database["public"]['Enums']["payment_method"],"organization_id": string,"paid_at": string
+                  }
+                  Update: {
+                    "amount"?: number,"created_at"?: string,"document_id"?: string,"id"?: string,"method"?: Database["public"]['Enums']["payment_method"],"organization_id"?: string,"paid_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payments_document_fk"
+      columns: ["organization_id","document_id"]
+isOneToOne: false
+      referencedRelation: "documents"
+      referencedColumns: ["organization_id","id"]
+    }
                   ]
                 },"profiles": {
                   Row: {
@@ -120,7 +192,7 @@ isOneToOne: true
             [_ in never]: never
           }
           Enums: {
-            "org_role": "owner"|"admin"|"member"
+            "document_status": "draft"|"sent"|"paid"|"cancelled","document_type": "devis"|"facture","org_role": "owner"|"admin"|"member","payment_method": "cash"|"virement"|"cheque"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -240,7 +312,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "org_role": ["owner", "admin", "member"]
+            "document_status": ["draft", "sent", "paid", "cancelled"],"document_type": ["devis", "facture"],"org_role": ["owner", "admin", "member"],"payment_method": ["cash", "virement", "cheque"]
           }
         }
 } as const
