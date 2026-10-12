@@ -116,6 +116,36 @@ begin
 end;
 $$;
 
+-- A draft document with one item. Remembers p_key and p_key || ':item'.
+create or replace function tests.create_draft(
+  p_key text,
+  p_org uuid,
+  p_client uuid,
+  p_type public.document_type default 'facture'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_doc uuid;
+  v_item uuid;
+begin
+  insert into public.documents (organization_id, type, client_id)
+  values (p_org, p_type, p_client)
+  returning id into v_doc;
+
+  insert into public.document_items (organization_id, document_id, description, quantity, unit_price, tva_rate)
+  values (p_org, v_doc, 'Prestation', 1, 100.000, 0)
+  returning id into v_item;
+
+  perform tests.remember(p_key, v_doc);
+  perform tests.remember(p_key || ':item', v_item);
+  return v_doc;
+end;
+$$;
+
 -- Standard world used by the test files:
 --   org_a: alice (owner), carol (admin), dave (member)      org_b: bob (owner)
 -- carol and dave also own a personal organization of their own.

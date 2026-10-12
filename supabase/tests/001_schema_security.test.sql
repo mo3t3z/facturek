@@ -75,6 +75,40 @@ select ok(
   'authenticated cannot INSERT or DELETE tax_settings'
 );
 
+-- documents: exact column privileges of the API role (first line of defence around
+-- status and numbering).
+select bag_eq(
+  $$ select c.column_name::text from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = 'documents'
+       and has_column_privilege('authenticated', 'public.documents', c.column_name, 'INSERT') $$,
+  $$ values ('organization_id'), ('type'), ('client_id'), ('issue_date'), ('due_date'), ('notes'), ('converted_from') $$,
+  'authenticated can INSERT only content columns of documents (no status, number, year)'
+);
+select bag_eq(
+  $$ select c.column_name::text from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = 'documents'
+       and has_column_privilege('authenticated', 'public.documents', c.column_name, 'UPDATE') $$,
+  $$ values ('client_id'), ('issue_date'), ('due_date'), ('notes'), ('converted_from') $$,
+  'authenticated can UPDATE only content columns of documents (no status, number, year, id, organization_id)'
+);
+select bag_eq(
+  $$ select c.column_name::text from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = 'document_items'
+       and has_column_privilege('authenticated', 'public.document_items', c.column_name, 'UPDATE') $$,
+  $$ values ('position'), ('description'), ('quantity'), ('unit_price'), ('tva_rate') $$,
+  'authenticated cannot UPDATE id, organization_id or document_id of document_items'
+);
+select ok(
+  not has_any_column_privilege('authenticated', 'public.payments', 'UPDATE')
+  and not has_table_privilege('authenticated', 'public.payments', 'DELETE'),
+  'authenticated has no UPDATE or DELETE privilege on payments'
+);
+select is_empty(
+  $$ select table_name::text, column_name::text from information_schema.columns
+     where table_schema = 'public' and column_name like '%tva%' and column_default is not null $$,
+  'no TVA rate column has a default'
+);
+
 -- SECURITY DEFINER hygiene.
 select is_empty(
   $$ select p.proname::text
@@ -110,6 +144,7 @@ select is_empty(
 
 -- Behaviour as anon.
 select tests.seed();
+select tests.create_draft('doc_a', tests.id('org_a'), tests.id('client_a'));
 select tests.authenticate_as_anon();
 
 select throws_ok('select * from public.organizations', '42501', null, 'anon cannot read organizations');
@@ -126,6 +161,26 @@ select throws_ok(
      values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
   '42501', null, 'anon cannot insert a membership'
 );
+select throws_ok('select * from public.documents', '42501', null, 'anon cannot read documents');
+select throws_ok('select * from public.document_items', '42501', null, 'anon cannot read document_items');
+select throws_ok('select * from public.payments', '42501', null, 'anon cannot read payments');
+select throws_ok(
+  $$ insert into public.documents (organization_id, type) values (tests.id('org_a'), 'facture') $$,
+  '42501', null, 'anon cannot insert documents'
+);
+select throws_ok(
+  $$ insert into public.document_items (organization_id, document_id, description, quantity, unit_price, tva_rate)
+     values (tests.id('org_a'), tests.id('doc_a'), 'x', 1, 1, 0) $$,
+  '42501', null, 'anon cannot insert document_items'
+);
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('doc_a'), 1, current_date, 'cash') $$,
+  '42501', null, 'anon cannot insert payments'
+);
+select throws_ok($$ update public.documents set notes = 'x' $$, '42501', null, 'anon cannot update documents');
+select throws_ok('delete from public.documents', '42501', null, 'anon cannot delete documents');
+select throws_ok('delete from public.document_items', '42501', null, 'anon cannot delete document_items');
 select throws_ok(
   $$ update public.tax_settings set timbre_fiscal = 0 $$,
   '42501', null, 'anon cannot update tax_settings'
