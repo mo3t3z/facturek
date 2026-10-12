@@ -31,6 +31,11 @@ returning tests.remember('client_a2', id);
 select tests.create_draft('devis_a', tests.id('org_a'), tests.id('client_a'), 'devis');
 select tests.create_draft('devis_a_sent', tests.id('org_a'), tests.id('client_a'), 'devis');
 update public.documents set status = 'sent', number = 1, year = 2026 where id = tests.id('devis_a_sent');
+-- Factures that are past 'sent': no payment may be recorded on them.
+select tests.create_draft('doc_a_paid', tests.id('org_a'), tests.id('client_a'));
+select tests.create_draft('doc_a_cancelled', tests.id('org_a'), tests.id('client_a'));
+update public.documents set status = 'paid', number = 10, year = 2026 where id = tests.id('doc_a_paid');
+update public.documents set status = 'cancelled', number = 11, year = 2026 where id = tests.id('doc_a_cancelled');
 
 select tests.authenticate_as('alice@test.local');
 
@@ -38,8 +43,8 @@ select tests.authenticate_as('alice@test.local');
 select is_empty($$ select 1 from public.documents where organization_id = tests.id('org_b') $$, 'A cannot read B''s documents');
 select is_empty($$ select 1 from public.document_items where organization_id = tests.id('org_b') $$, 'A cannot read B''s items');
 select is_empty($$ select 1 from public.payments where organization_id = tests.id('org_b') $$, 'A cannot read B''s payments');
-select is((select count(*)::int from public.documents), 6, 'A reads exactly their own 6 documents');
-select is((select count(*)::int from public.document_items), 6, 'A reads exactly their own 6 items');
+select is((select count(*)::int from public.documents), 8, 'A reads exactly their own 8 documents');
+select is((select count(*)::int from public.document_items), 8, 'A reads exactly their own 8 items');
 select is((select count(*)::int from public.payments), 1, 'A reads exactly their own payment');
 
 -- 2. CROSS-ORG ISOLATION: WRITE ----------------------------------------------------------
@@ -188,7 +193,7 @@ select is_empty(
   $$ select 1 from public.document_items where id = tests.id('doc_a_other:item') $$,
   'deleting a draft deletes its items');
 
--- 6. PAYMENTS: only on a non-draft facture, and append-only from the API -------------------
+-- 6. PAYMENTS: only on a sent facture, and append-only from the API -----------------------
 select lives_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_a'), tests.id('doc_a_sent'), 50.500, current_date, 'virement') $$,
@@ -205,6 +210,14 @@ select throws_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_a'), tests.id('devis_a'), 1, current_date, 'cash') $$,
   '42501', null, 'a payment cannot be recorded on a draft devis');
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('doc_a_paid'), 1, current_date, 'cash') $$,
+  '42501', null, 'a payment cannot be recorded on a paid facture');
+select throws_ok(
+  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
+     values (tests.id('org_a'), tests.id('doc_a_cancelled'), 1, current_date, 'cash') $$,
+  '42501', null, 'a payment cannot be recorded on a cancelled facture');
 select is((select count(*)::int from public.payments), 2, 'only the accepted payment was added');
 select throws_ok($$ update public.payments set amount = 1 where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be updated from the API');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be deleted from the API');

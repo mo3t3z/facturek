@@ -3,7 +3,7 @@
 --
 --   documents      : members read and insert; UPDATE and DELETE only while status = 'draft'
 --   document_items : members read; INSERT/UPDATE/DELETE only while the parent is a draft
---   payments       : members read; INSERT only on a non-draft facture; no UPDATE/DELETE
+--   payments       : members read; INSERT only on a sent facture; no UPDATE/DELETE
 
 -- documents -----------------------------------------------------------------------------
 create policy documents_select on public.documents
@@ -86,7 +86,8 @@ create policy document_items_delete on public.document_items
 create policy payments_select on public.payments
   for select to authenticated using (private.is_org_member(organization_id));
 
--- A payment can only be recorded on a facture that is no longer a draft.
+-- A payment can only be recorded on a facture whose status is exactly 'sent': not a draft,
+-- not already paid, not cancelled.
 -- TODO(C3): this policy only binds the API role. A trigger will enforce the same rule for
 -- every role (service role, SQL editor) and lock the parent row against concurrent changes.
 create policy payments_insert on public.payments
@@ -99,6 +100,6 @@ create policy payments_insert on public.payments
       where d.id = payments.document_id
         and d.organization_id = payments.organization_id
         and d.type = 'facture'
-        and d.status <> 'draft'
+        and d.status = 'sent'
     )
   );
