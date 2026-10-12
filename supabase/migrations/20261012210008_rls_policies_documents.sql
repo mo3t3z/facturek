@@ -88,8 +88,8 @@ create policy payments_select on public.payments
 
 -- A payment can only be recorded on a facture whose status is exactly 'sent': not a draft,
 -- not already paid, not cancelled.
--- TODO(C3): this policy only binds the API role. A trigger will enforce the same rule for
--- every role (service role, SQL editor) and lock the parent row against concurrent changes.
+-- This policy binds the API role. The guard_payments trigger enforces the same rule for
+-- every role and locks the parent row against concurrent changes.
 create policy payments_insert on public.payments
   for insert to authenticated
   with check (
