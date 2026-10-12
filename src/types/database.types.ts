@@ -43,6 +43,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"document_counters": {
+                  Row: {
+                    "last_number": number,"organization_id": string,"type": Database["public"]['Enums']["document_type"],"year": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "last_number": number,"organization_id": string,"type": Database["public"]['Enums']["document_type"],"year": number
+                  }
+                  Update: {
+                    "last_number"?: number,"organization_id"?: string,"type"?: Database["public"]['Enums']["document_type"],"year"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "document_counters_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"document_items": {
                   Row: {
                     "created_at": string,"description": string,"document_id": string,"id": string,"organization_id": string,"position": number,"quantity": number,"tva_rate": number,"unit_price": number,"updated_at": string
@@ -65,14 +85,14 @@ isOneToOne: false
                   ]
                 },"documents": {
                   Row: {
-                    "client_id": string | null,"converted_from": string | null,"created_at": string,"currency": string,"due_date": string | null,"id": string,"issue_date": string | null,"notes": string | null,"number": number | null,"organization_id": string,"status": Database["public"]['Enums']["document_status"],"type": Database["public"]['Enums']["document_type"],"updated_at": string,"year": number | null
+                    "buyer_address": string | null,"buyer_matricule_fiscal": string | null,"buyer_name": string | null,"client_id": string | null,"converted_from": string | null,"created_at": string,"currency": string,"due_date": string | null,"id": string,"issue_date": string | null,"notes": string | null,"number": number | null,"organization_id": string,"retenue_enabled": boolean | null,"retenue_rate": number | null,"retenue_threshold": number | null,"seller_address": string | null,"seller_matricule_fiscal": string | null,"seller_name": string | null,"status": Database["public"]['Enums']["document_status"],"timbre_fiscal": number | null,"type": Database["public"]['Enums']["document_type"],"updated_at": string,"year": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id": string,"status"?: Database["public"]['Enums']["document_status"],"type": Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id": string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"type": Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
                   }
                   Update: {
-                    "client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id"?: string,"status"?: Database["public"]['Enums']["document_status"],"type"?: Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id"?: string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"type"?: Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
                   }
                   Relationships: [
                     {
@@ -165,14 +185,14 @@ isOneToOne: false
                   ]
                 },"tax_settings": {
                   Row: {
-                    "created_at": string,"default_tva_rate": number | null,"organization_id": string,"retenue_enabled": boolean,"retenue_rate": number | null,"retenue_threshold": number | null,"timbre_fiscal": number | null,"updated_at": string
+                    "created_at": string,"default_tva_rate": number | null,"organization_id": string,"retenue_enabled": boolean,"retenue_rate": number | null,"retenue_threshold": number | null,"timbre_enabled": boolean,"timbre_fiscal": number | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"default_tva_rate"?: number | null,"organization_id": string,"retenue_enabled"?: boolean,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"timbre_fiscal"?: number | null,"updated_at"?: string
+                    "created_at"?: string,"default_tva_rate"?: number | null,"organization_id": string,"retenue_enabled"?: boolean,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"timbre_enabled"?: boolean,"timbre_fiscal"?: number | null,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"default_tva_rate"?: number | null,"organization_id"?: string,"retenue_enabled"?: boolean,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"timbre_fiscal"?: number | null,"updated_at"?: string
+                    "created_at"?: string,"default_tva_rate"?: number | null,"organization_id"?: string,"retenue_enabled"?: boolean,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"timbre_enabled"?: boolean,"timbre_fiscal"?: number | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -189,7 +209,39 @@ isOneToOne: true
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "finalize_document":
+{ Args: { "p_document_id": string }; Returns: {
+              "buyer_address": string | null,
+"buyer_matricule_fiscal": string | null,
+"buyer_name": string | null,
+"client_id": string | null,
+"converted_from": string | null,
+"created_at": string,
+"currency": string,
+"due_date": string | null,
+"id": string,
+"issue_date": string | null,
+"notes": string | null,
+"number": number | null,
+"organization_id": string,
+"retenue_enabled": boolean | null,
+"retenue_rate": number | null,
+"retenue_threshold": number | null,
+"seller_address": string | null,
+"seller_matricule_fiscal": string | null,
+"seller_name": string | null,
+"status": Database["public"]['Enums']["document_status"],
+"timbre_fiscal": number | null,
+"type": Database["public"]['Enums']["document_type"],
+"updated_at": string,
+"year": number | null
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "documents"
+        isOneToOne: true
+        isSetofReturn: false
+      } }
           }
           Enums: {
             "document_status": "draft"|"sent"|"paid"|"cancelled","document_type": "devis"|"facture","org_role": "owner"|"admin"|"member","payment_method": "cash"|"virement"|"cheque"
