@@ -1,9 +1,9 @@
-// Concurrency test for public.finalize_document().
+// Concurrency test for public.finalize_document() and the item guard trigger.
 //
 // pgTAP runs in ONE database session, so it cannot prove anything about two users
-// finalizing at the same moment. This script opens many REAL connections (one psql process
+// acting at the same moment. This script opens many REAL connections (one psql process
 // per connection, through `docker exec` into the local Supabase database container) and
-// makes them call finalize_document() at the same instant.
+// releases them at the same instant.
 //
 // It only ever talks to the LOCAL database container. No dependency: Node + Docker.
 //
@@ -15,6 +15,16 @@
 //      exactly the numbers 1..N: no duplicate, no gap, no failed call.
 //   2. A finalize inside a transaction that is rolled back consumes no number.
 //   3. The same draft finalized from several connections at once is finalized exactly once.
+//   4. Items inserted into a draft WHILE it is being finalized are either part of the
+//      finalized document or rejected; none is stored after the fact.
+//   5. The last item deleted WHILE the document is being finalized: either the finalize
+//      fails (no items) or the delete fails; a sent document never ends up with no items.
+//
+// Cleanup: issued documents and payments cannot be deleted by any role (that is the point
+// of the guard triggers), so the fixture is removed with
+// `SET LOCAL session_replication_role = replica`, which switches triggers off for that one
+// cleanup transaction. This is acceptable ONLY because the target is the local test
+// database; never do this against a real database.
 
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -22,6 +32,8 @@ import { readFileSync } from 'node:fs'
 
 const WORKERS = Number(process.env.CONCURRENCY_WORKERS ?? 20)
 const SAME_DOCUMENT_CALLERS = 5
+const ITEM_INSERTERS = 15
+const DELETE_RACE_ROUNDS = 9
 // Each worker keeps its transaction open this long after finalizing, so the transactions
 // are guaranteed to overlap instead of finishing before the next one starts.
 const HOLD_SECONDS = 0.1
@@ -74,7 +86,9 @@ const parallelDocs = Array.from({ length: WORKERS }, () => randomUUID())
 const rollbackDoc = randomUUID()
 const afterRollbackDoc = randomUUID()
 const sameDoc = randomUUID()
-const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc]
+const itemRaceDoc = randomUUID()
+const deleteRaceDocs = Array.from({ length: DELETE_RACE_ROUNDS }, () => randomUUID())
+const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
 const gunKey = 700000000 + Math.floor(Math.random() * 1000000)
 
@@ -99,12 +113,22 @@ insert into public.document_items (organization_id, document_id, description, qu
 commit;
 `
 
-// Deleting the organization cascades to members, tax_settings, clients and counters.
+// LOCAL TEST DATABASE ONLY. With session_replication_role = replica, triggers do not fire
+// for this transaction: neither our guard triggers (which rightly refuse to delete issued
+// documents) nor the foreign-key triggers. So nothing cascades and every table is emptied
+// explicitly, children first. SET LOCAL ends with the transaction.
 const cleanupSql = `
 begin;
+set local session_replication_role = replica;
 delete from public.payments where organization_id = '${orgId}';
+delete from public.document_items where organization_id = '${orgId}';
 delete from public.documents where organization_id = '${orgId}';
+delete from public.document_counters where organization_id = '${orgId}';
+delete from public.clients where organization_id = '${orgId}';
+delete from public.tax_settings where organization_id = '${orgId}';
+delete from public.organization_members where organization_id = '${orgId}';
 delete from public.organizations where id = '${orgId}';
+delete from public.profiles where id = '${userId}';
 delete from auth.users where id = '${userId}';
 commit;
 `
@@ -270,6 +294,108 @@ rollback;
   check(sameList(state.numbers, range(WORKERS + 2)), `the series is exactly 1..${WORKERS + 2}: only one number was consumed`,
     `stored: ${state.numbers.join(',')}`)
   check(state.counter === String(WORKERS + 2), `the counter is ${WORKERS + 2}`, `counter: ${state.counter}`)
+
+  // 4. Items inserted while the document is being finalized ------------------------------
+  // Inserter i starts i * 20 ms after the gun; the finalizer starts after 100 ms and keeps
+  // its transaction open 300 ms. So some inserts land before the finalize and the others
+  // arrive while it is in progress.
+  console.log(`\n[4] ${ITEM_INSERTERS} connections insert items into a draft while another connection finalizes it`)
+  const insertItem = (i) => `
+select pg_sleep(${(i * 0.02).toFixed(2)});
+${asUser(`
+insert into public.document_items (organization_id, document_id, description, quantity, unit_price, tva_rate)
+values ('${orgId}', '${itemRaceDoc}', 'race ${i}', 1, 1, 0);
+select 'INSERTED';
+commit;
+`)}`
+  const finalizeWhileInserting = `
+select pg_sleep(0.1);
+${asUser(`
+select 'NUMBER=' || number from public.finalize_document('${itemRaceDoc}');
+select pg_sleep(0.3);
+select 'COUNTED=' || count(*) from public.document_items where document_id = '${itemRaceDoc}';
+commit;
+`)}`
+  const itemRace = await runTogether([
+    finalizeWhileInserting,
+    ...Array.from({ length: ITEM_INSERTERS }, (_, i) => insertItem(i)),
+  ])
+  const [itemFinalizer, ...inserters] = itemRace.results
+  const countedAtFinalize = Number(/^COUNTED=(\d+)$/m.exec(itemFinalizer.stdout)?.[1] ?? NaN)
+  const inserted = inserters.filter((r) => r.code === 0 && /^INSERTED$/m.test(r.stdout))
+  const rejected = inserters.filter((r) => r.code !== 0)
+  const wronglyRejected = rejected.filter((r) => !/DF014/.test(r.stderr))
+  const [itemDocStatus, itemsStored] = (await mustRunSql(`
+select status from public.documents where id = '${itemRaceDoc}';
+select count(*) from public.document_items where document_id = '${itemRaceDoc}';
+`)).split('\n')
+  console.log(`      inserted before the finalize: ${inserted.length}, rejected: ${rejected.length}, items counted inside the finalizing transaction: ${countedAtFinalize}, items stored now: ${itemsStored}`)
+  check(itemFinalizer.code === 0 && itemDocStatus === 'sent', 'the finalize succeeded',
+    itemFinalizer.code === 0 ? `status: ${itemDocStatus}` : errorOf(itemFinalizer.stderr))
+  check(Number(itemsStored) === countedAtFinalize,
+    'the document holds exactly the items it had when it was finalized (nothing slipped in afterwards)',
+    `at finalize: ${countedAtFinalize}, now: ${itemsStored}`)
+  check(Number(itemsStored) === 1 + inserted.length, 'every stored item is the initial one or an insert that reported success',
+    `1 initial + ${inserted.length} successful inserts, stored: ${itemsStored}`)
+  check(inserted.length + rejected.length === ITEM_INSERTERS && wronglyRejected.length === 0,
+    'every insert that lost the race was rejected with DF014, none was silently dropped or stored',
+    wronglyRejected.length ? `unexpected error: ${errorOf(wronglyRejected[0].stderr)}` : '')
+  check(inserted.length > 0 && rejected.length > 0, 'both outcomes were observed (some inserts before, some during the finalize)',
+    `inserted: ${inserted.length}, rejected: ${rejected.length}`)
+
+  // 5. The last item deleted while the document is being finalized -----------------------
+  // Several rounds, each with a fresh draft holding exactly one item. The round number
+  // decides who starts first: the delete, the finalize, or both at the same instant.
+  console.log(`\n[5] ${DELETE_RACE_ROUNDS} rounds: one connection deletes the last item while another finalizes`)
+  const outcomes = { finalizeWon: 0, deleteWon: 0 }
+  const violations = []
+  for (let round = 0; round < DELETE_RACE_ROUNDS; round++) {
+    const doc = deleteRaceDocs[round]
+    const order = ['delete first', 'finalize first', 'same instant'][round % 3]
+    const deleteDelay = order === 'finalize first' ? 0.05 : 0
+    const finalizeDelay = order === 'delete first' ? 0.05 : 0
+    const finalizeLast = `
+select pg_sleep(${finalizeDelay});
+${asUser(`
+select 'NUMBER=' || number from public.finalize_document('${doc}');
+select pg_sleep(0.15);
+commit;
+`)}`
+    const deleteLast = `
+select pg_sleep(${deleteDelay});
+${asUser(`
+with gone as (delete from public.document_items where document_id = '${doc}' returning 1)
+select 'DELETED=' || count(*) from gone;
+select pg_sleep(0.15);
+commit;
+`)}`
+    const { results: [finalizer, deleter] } = await runTogether([finalizeLast, deleteLast])
+    const finalized = finalizer.code === 0 && numberOf(finalizer.stdout) !== null
+    const deletedRows = deleter.code === 0 ? Number(/^DELETED=(\d+)$/m.exec(deleter.stdout)?.[1] ?? NaN) : 0
+    const stateNow = await mustRunSql(
+      `select status || '/' || (select count(*) from public.document_items where document_id = '${doc}') from public.documents where id = '${doc}';`,
+    )
+    const finalizeWon = finalized && stateNow === 'sent/1' && deletedRows === 0
+      && (deleter.code === 0 || /DF014/.test(deleter.stderr))
+    const deleteWon = !finalized && /DF004/.test(finalizer.stderr) && stateNow === 'draft/0' && deletedRows === 1
+    if (finalizeWon) outcomes.finalizeWon++
+    else if (deleteWon) outcomes.deleteWon++
+    else {
+      violations.push(`round ${round + 1} (${order}): document is ${stateNow} (status/items); finalize ${finalized ? 'succeeded' : `failed: ${errorOf(finalizer.stderr)}`}; delete ${deleter.code === 0 ? `removed ${deletedRows} row(s)` : `failed: ${errorOf(deleter.stderr)}`}`)
+    }
+  }
+  console.log(`      finalize won (delete rejected): ${outcomes.finalizeWon}, delete won (finalize failed with DF004): ${outcomes.deleteWon}`)
+  const sentWithoutItems = await mustRunSql(`
+select count(*) from public.documents d
+where d.organization_id = '${orgId}' and d.status <> 'draft'
+  and not exists (select 1 from public.document_items i where i.document_id = d.id);
+`)
+  check(sentWithoutItems === '0', 'no issued document is left without items', `issued documents with zero items: ${sentWithoutItems}`)
+  check(violations.length === 0,
+    'every round ended in one of the two valid outcomes (finalize fails with DF004, or the delete is rejected)',
+    violations.join('\n      '))
+  check(outcomes.finalizeWon > 0 && outcomes.deleteWon > 0, 'both outcomes were observed',
+    `finalize won: ${outcomes.finalizeWon}, delete won: ${outcomes.deleteWon}`)
 } finally {
   const cleanup = await runSql(cleanupSql)
   console.log(cleanup.code === 0
