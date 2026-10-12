@@ -78,6 +78,8 @@ introduced.
 ### Database workflow
 - Local only. Never touch a remote/production database; ask before any remote action.
 - Schema changes go through new migration files, never by editing the DB by hand.
+- Once any remote database exists, migrations are append-only: never edit an applied
+  migration, always add a new one.
 - No destructive operations without the user's confirmation.
 
 ### Frontend
