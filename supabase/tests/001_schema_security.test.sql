@@ -54,6 +54,15 @@ select ok(
   'authenticated cannot INSERT or DELETE organizations'
 );
 select ok(
+  not has_table_privilege('authenticated', 'public.organization_members', 'INSERT'),
+  'authenticated has no INSERT privilege on organization_members'
+);
+select is_empty(
+  $$ select policyname::text from pg_policies
+     where schemaname = 'public' and tablename = 'organization_members' and cmd in ('INSERT', 'ALL') $$,
+  'organization_members has no INSERT policy'
+);
+select ok(
   not has_table_privilege('authenticated', 'public.tax_settings', 'INSERT')
   and not has_table_privilege('authenticated', 'public.tax_settings', 'DELETE'),
   'authenticated cannot INSERT or DELETE tax_settings'
@@ -104,6 +113,11 @@ select throws_ok('select * from public.tax_settings', '42501', null, 'anon canno
 select throws_ok(
   $$ insert into public.clients (organization_id, name) values (tests.id('org_a'), 'x') $$,
   '42501', null, 'anon cannot insert clients'
+);
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
+  '42501', null, 'anon cannot insert a membership'
 );
 select throws_ok(
   $$ update public.tax_settings set timbre_fiscal = 0 $$,

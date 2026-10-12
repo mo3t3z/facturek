@@ -56,7 +56,11 @@ select is_empty(
 select throws_ok(
   $$ insert into public.organization_members (organization_id, user_id, role)
      values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
-  '42501', null, 'member cannot add members');
+  '42501', null, 'member cannot add someone else to the organization');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_b'), tests.id('user:dave@test.local'), 'member') $$,
+  '42501', null, 'member cannot add themselves to another organization');
 select is_empty(
   $$ delete from public.organization_members
      where organization_id = tests.id('org_a') and user_id = tests.id('user:carol@test.local') returning 1 $$,
@@ -92,7 +96,15 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.organization_members (organization_id, user_id, role)
      values (tests.id('org_a'), tests.id('user:bob@test.local'), 'owner') $$,
-  '42501', null, 'admin cannot add a new member as owner');
+  '42501', null, 'admin cannot add someone else as owner');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
+  '42501', null, 'admin cannot add someone else as member');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_b'), tests.id('user:carol@test.local'), 'admin') $$,
+  '42501', null, 'admin cannot add themselves to another organization');
 select is_empty(
   $$ update public.organization_members set role = 'member'
      where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') returning 1 $$,
@@ -112,6 +124,18 @@ select tests.authenticate_as('alice@test.local');
 select isnt_empty(
   $$ update public.organizations set name = 'Org A renamed' where id = tests.id('org_a') returning 1 $$,
   'owner can update the organization');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
+  '42501', null, 'owner cannot add someone else as member');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_a'), tests.id('user:bob@test.local'), 'owner') $$,
+  '42501', null, 'owner cannot add someone else as owner');
+select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_b'), tests.id('user:alice@test.local'), 'owner') $$,
+  '42501', null, 'owner cannot add themselves to another organization');
 select throws_ok(
   $$ update public.organization_members set role = 'admin'
      where organization_id = tests.id('org_a') and user_id = tests.id('user:alice@test.local') $$,

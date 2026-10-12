@@ -31,6 +31,10 @@ select throws_ok(
      values (tests.id('org_b'), tests.id('user:alice@test.local'), 'member') $$,
   '42501', null, 'A cannot add themselves to B as member');
 select throws_ok(
+  $$ insert into public.organization_members (organization_id, user_id, role)
+     values (tests.id('org_a'), tests.id('user:bob@test.local'), 'member') $$,
+  '42501', null, 'A (owner) cannot pull B''s user into their own organization');
+select throws_ok(
   $$ insert into public.organizations (name) values ('rogue org') $$,
   '42501', null, 'organizations cannot be inserted from the API');
 select throws_ok(
