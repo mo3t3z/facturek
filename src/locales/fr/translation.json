@@ -2,5 +2,123 @@
   "app": {
     "name": "Devis & Factures",
     "loading": "Chargement…"
+  },
+  "home": {
+    "title": "Tableau de bord",
+    "signedInAs": "Connecté en tant que",
+    "organization": "Entreprise",
+    "role": "Rôle",
+    "comingSoon": "Les devis et les factures arrivent dans la prochaine étape.",
+    "accountError": "Votre espace n'a pas pu être préparé.",
+    "retry": "Réessayer",
+    "retrying": "Nouvel essai…"
+  },
+  "roles": {
+    "owner": "Propriétaire",
+    "admin": "Administrateur",
+    "member": "Membre"
+  },
+  "auth": {
+    "logout": "Se déconnecter",
+    "backToLogin": "Retour à la connexion",
+    "fields": {
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "fullName": "Nom complet",
+      "passwordHint": "Au moins 10 caractères."
+    },
+    "login": {
+      "title": "Connexion",
+      "submit": "Se connecter",
+      "submitting": "Connexion…",
+      "forgot": "Mot de passe oublié ?",
+      "toSignup": "Créer un compte"
+    },
+    "signup": {
+      "title": "Créer un compte",
+      "submit": "Créer mon compte",
+      "submitting": "Création…",
+      "toLogin": "J'ai déjà un compte",
+      "checkInboxTitle": "Vérifiez votre boîte mail",
+      "checkInbox": "Si cette adresse peut être utilisée, un e-mail vient de lui être envoyé. Ouvrez-le et suivez le lien pour activer votre compte."
+    },
+    "forgot": {
+      "title": "Mot de passe oublié",
+      "intro": "Indiquez votre adresse e-mail pour recevoir un lien de réinitialisation.",
+      "submit": "Envoyer le lien",
+      "submitting": "Envoi…",
+      "sentTitle": "Vérifiez votre boîte mail",
+      "sent": "Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d'être envoyé."
+    },
+    "reset": {
+      "title": "Nouveau mot de passe",
+      "submit": "Enregistrer le mot de passe",
+      "submitting": "Enregistrement…",
+      "invalidTitle": "Lien requis",
+      "invalid": "Cette page n'est accessible que depuis le lien reçu par e-mail. Demandez un nouveau lien de réinitialisation.",
+      "requestNew": "Demander un nouveau lien"
+    },
+    "confirm": {
+      "emailTitle": "Confirmer votre adresse e-mail",
+      "emailIntro": "Appuyez sur le bouton pour activer votre compte.",
+      "emailSubmit": "Confirmer mon adresse",
+      "recoveryTitle": "Réinitialiser votre mot de passe",
+      "recoveryIntro": "Appuyez sur le bouton pour choisir un nouveau mot de passe.",
+      "recoverySubmit": "Continuer",
+      "submitting": "Vérification…",
+      "invalidTitle": "Lien invalide",
+      "invalid": "Ce lien est incomplet ou invalide."
+    },
+    "validation": {
+      "required": "Ce champ est obligatoire.",
+      "tooLong": "Ce texte est trop long.",
+      "emailInvalid": "Adresse e-mail invalide.",
+      "passwordTooShort": "Le mot de passe doit contenir au moins 10 caractères.",
+      "passwordTooLong": "Le mot de passe est trop long.",
+      "passwordMismatch": "Les deux mots de passe ne sont pas identiques."
+    }
+  },
+  "errors": {
+    "unknown": "Une erreur est survenue. Réessayez dans un instant.",
+    "network": "Connexion au serveur impossible. Vérifiez votre connexion internet puis réessayez.",
+    "auth": {
+      "login_failed": "Connexion impossible : e-mail ou mot de passe incorrect, ou adresse e-mail non confirmée.",
+      "weak_password": "Ce mot de passe est trop faible. Choisissez-en un plus long.",
+      "same_password": "Le nouveau mot de passe doit être différent de l'ancien.",
+      "over_request_rate_limit": "Trop de tentatives. Patientez quelques minutes avant de réessayer.",
+      "over_email_send_rate_limit": "Trop d'e-mails ont été demandés. Patientez quelques minutes avant de réessayer.",
+      "otp_expired": "Ce lien a expiré ou a déjà été utilisé. Demandez-en un nouveau.",
+      "session_not_found": "Votre session a expiré. Reconnectez-vous.",
+      "signup_disabled": "La création de compte est momentanément indisponible.",
+      "validation_failed": "Les informations saisies ne sont pas valides."
+    },
+    "db": {
+      "DF000": "Votre session a expiré. Reconnectez-vous.",
+      "DF001": "Ce document est introuvable.",
+      "DF002": "Ce document a déjà été émis.",
+      "DF003": "Choisissez un client avant d'émettre ce document.",
+      "DF004": "Ajoutez au moins une ligne avant d'émettre ce document.",
+      "DF005": "La date d'émission ne peut pas être dans le futur.",
+      "DF006": "La date d'émission ne peut pas être antérieure à celle du document précédent.",
+      "DF007": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres.",
+      "DF008": "La date d'échéance ne peut pas précéder la date d'émission.",
+      "DF010": "Un document émis ne peut pas être supprimé.",
+      "DF011": "Un document émis ne peut plus être modifié.",
+      "DF012": "Ce changement de statut n'est pas autorisé.",
+      "DF013": "Une facture ne peut être créée qu'à partir d'un devis émis et non annulé.",
+      "DF014": "Les lignes d'un document émis ne peuvent plus être modifiées.",
+      "DF015": "Une ligne ne peut pas être déplacée vers un autre document.",
+      "DF016": "Un paiement ne peut être enregistré que sur une facture émise et non soldée.",
+      "DF017": "Un paiement enregistré ne peut être ni modifié ni supprimé.",
+      "DF020": "Le dernier propriétaire d'une entreprise ne peut pas être retiré.",
+      "DF040": "Cet élément ne peut pas changer d'entreprise.",
+      "42501": "Vous n'avez pas les droits nécessaires pour cette action.",
+      "23503": "Cet élément est utilisé ailleurs et ne peut pas être modifié ou supprimé.",
+      "23505": "Cet élément existe déjà.",
+      "23514": "Certaines valeurs saisies ne sont pas valides.",
+      "PGRST301": "Votre session a expiré. Reconnectez-vous."
+    }
   }
 }
