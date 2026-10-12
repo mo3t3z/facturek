@@ -28,6 +28,26 @@ describe('parseEnv', () => {
     )
   })
 
+  it.each(['http://127.0.0.1:54321', 'https://abc.supabase.co', 'HTTPS://ABC.SUPABASE.CO'])(
+    'accepts the http(s) URL %s',
+    (value) => {
+      expect(() => parseEnv({ VITE_SUPABASE_URL: value, VITE_SUPABASE_ANON_KEY: anonJwt })).not.toThrow()
+    },
+  )
+
+  it.each([
+    'javascript:alert(1)',
+    'data:text/plain,x',
+    'file:///etc/passwd',
+    'ftp://example.com',
+    'ws://example.com',
+    'blob:https://example.com/x',
+    '//example.com',
+    'example.com',
+  ])('rejects the non-http(s) URL %s', (value) => {
+    expect(() => parseEnv({ VITE_SUPABASE_URL: value, VITE_SUPABASE_ANON_KEY: anonJwt })).toThrow(/VITE_SUPABASE_URL/)
+  })
+
   it('rejects a secret key (sb_secret_...)', () => {
     expect(() => parseEnv({ VITE_SUPABASE_URL: url, VITE_SUPABASE_ANON_KEY: 'sb_secret_do_not_ship' })).toThrow(
       /must never be shipped to a browser/,

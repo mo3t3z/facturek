@@ -24,7 +24,8 @@ export function isPrivilegedKey(key: string): boolean {
 }
 
 const envSchema = z.object({
-  VITE_SUPABASE_URL: z.url(),
+  // http(s) only: the value is used as the base of every API request.
+  VITE_SUPABASE_URL: z.url().refine((value) => /^https?:\/\//i.test(value), { message: 'not http(s)' }),
   VITE_SUPABASE_ANON_KEY: z
     .string()
     .min(1)
