@@ -19,6 +19,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run test:db` – pgTAP tests in `supabase/tests`
 - `npm run test:concurrency` – many real connections call `finalize_document()` at once
   (local database only; pgTAP cannot test this because it runs in one session)
+- `npm run test:e2e-auth` – real signup, email confirmation, login, `ensure_my_account`
+  and password recovery through the LOCAL Auth/REST APIs and Mailpit (never prints keys)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 
 ## Structure
@@ -136,13 +138,38 @@ introduced.
   "paid" when its payments cover its total, not when someone says so).
 - A devis can currently be converted into several factures (`converted_from` has no
   uniqueness rule). Decide in phase 2 whether that is wanted.
-- The DF0xx codes must be mapped to French messages in the frontend (i18n keys), all of
-  them, including DF014 (items of an issued document) and DF016 (payment refused), which
-  the API role now receives instead of a generic 42501.
 - Have an accountant check the status transition map and the two date rules of
   `finalize_document()`.
 - Ownership transfer and account deletion: today the last owner cannot leave or be
   deleted (the DF020 trigger also blocks the `auth.users` cascade).
+
+### Auth and the browser (SPA trade-offs)
+- Email links go to OUR page: `/auth/confirm?token_hash=...&type=email|recovery` (templates
+  in `supabase/templates`). The page calls `supabase.auth.verifyOtp()` only when the user
+  presses a button, so a mail scanner that opens the link cannot spend the token.
+- supabase-js owns the session (stores and refreshes it). App code never reads, writes or
+  copies a token, never uses `localStorage` / `sessionStorage` / cookies itself, and never
+  logs to the console. `src/test/sourceRules.test.ts` enforces this.
+- XSS trade-off, accepted for now: a SPA keeps its session where JavaScript can read it
+  (supabase-js uses localStorage). Any XSS could therefore steal the session, and RLS
+  would not help because the attacker would BE the user. Defences today: React escapes
+  all text, `dangerouslySetInnerHTML` is banned, user text (names) is rendered as text only.
+- TODO at deployment: a strict Content-Security-Policy (no inline script, `connect-src`
+  limited to the Supabase project, `frame-ancestors 'none'`), plus `X-Content-Type-Options`
+  and `Referrer-Policy`, set by the static host (Vercel / Netlify headers).
+- Any "where to go next" value from the URL goes through `safeRedirectPath()`
+  (`src/lib/safeRedirect.ts`): same-origin relative paths only.
+- Every backend error shown to the user goes through `errorMessageKey()`
+  (`src/lib/errors.ts`): an i18n key chosen from the error CODE, never the raw message.
+  New DF0xx codes must be added there and in `src/locales/fr/translation.json`.
+- Anti-enumeration: login failures share one message; signup and forgot-password show the
+  same screen whether or not the address is registered.
+- `.env` may only contain `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The app
+  refuses to start if the key is a secret (`sb_secret_...`) or a `service_role` JWT.
+- Password policy: minimum 10 characters, no composition rule (`supabase/config.toml`
+  and `PASSWORD_MIN_LENGTH` in `src/features/auth/schemas.ts` must stay in sync).
+- The hosted project must be configured like `supabase/config.toml` (site URL, email
+  confirmation, password length, both email templates). Nothing remote exists yet.
 
 ### Database workflow
 - Local only. Never touch a remote/production database; ask before any remote action.
