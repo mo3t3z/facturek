@@ -69,6 +69,28 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - Memberships (`organization_members`) are never inserted from the API: no INSERT
   privilege, no INSERT policy. Only SECURITY DEFINER functions create them.
 
+### Accounts (signup and repair)
+An account = profile + one organization + owner membership + empty `tax_settings`.
+The frontend never inserts these rows. `private.provision_account()` creates them and is
+reached only through two SECURITY DEFINER functions:
+
+- `private.handle_new_user()`: AFTER INSERT trigger on `auth.users`. Profile `full_name`
+  comes from `raw_user_meta_data->>'full_name'` (trimmed, max 100 chars, else NULL); the
+  organization takes the same name, or the placeholder `'Mon activité'`. `tax_settings`
+  is created empty (every rate and amount NULL, both switches false).
+  It NEVER makes a signup fail: any error is caught and logged as a WARNING with its
+  SQLSTATE. Consequence: a user can exist without a profile and without an organization.
+- `public.ensure_my_account()`: RPC for `authenticated` only, no parameter, acts only on
+  `auth.uid()`. Creates the account if the caller has no membership at all, otherwise
+  does nothing; returns the organization id of the caller's first membership. It raises
+  on failure (it does not swallow errors). The frontend must call it right after login
+  and use the returned id as the current organization.
+
+Provisioning is idempotent and serialized per user with `pg_advisory_xact_lock`, so
+repeated or simultaneous calls never create a second organization.
+In tests, `tests.signup()` performs a signup exactly as Supabase Auth does (one INSERT
+into `auth.users`).
+
 ### Custom SQLSTATE codes
 Raised by our triggers/functions so tests and the frontend can tell a business-rule
 rejection from an RLS/privilege rejection (`42501`). Add a row here whenever a new code is
@@ -76,7 +98,7 @@ introduced.
 
 | Code  | Meaning | Where raised |
 |-------|---------|--------------|
-| DF000 | Not authenticated: the call carries no user id | `public.finalize_document()` |
+| DF000 | Not authenticated: the call carries no user id | `public.finalize_document()`, `public.ensure_my_account()` |
 | DF001 | Document not found. Deliberately the same error for an id that does not exist and for a document of another organization | `public.finalize_document()` |
 | DF002 | Document is not a draft (already finalized) | `public.finalize_document()` |
 | DF003 | Document has no client | `public.finalize_document()` |
