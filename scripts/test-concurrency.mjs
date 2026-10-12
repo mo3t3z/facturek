@@ -1,4 +1,5 @@
-// Concurrency test for public.finalize_document() and the item guard trigger.
+// Concurrency test for public.finalize_document(), the item guard trigger and
+// public.ensure_my_account().
 //
 // pgTAP runs in ONE database session, so it cannot prove anything about two users
 // acting at the same moment. This script opens many REAL connections (one psql process
@@ -11,6 +12,8 @@
 //   CONCURRENCY_WORKERS=50 npm run test:concurrency
 //
 // What it checks
+//   0. A signup (one INSERT into auth.users, as Supabase Auth does) gives the user exactly
+//      one profile, one organization, one owner membership and one tax_settings row.
 //   1. N drafts of the same organization / type / year finalized in parallel receive
 //      exactly the numbers 1..N: no duplicate, no gap, no failed call.
 //   2. A finalize inside a transaction that is rolled back consumes no number.
@@ -19,12 +22,17 @@
 //      finalized document or rejected; none is stored after the fact.
 //   5. The last item deleted WHILE the document is being finalized: either the finalize
 //      fails (no items) or the delete fails; a sent document never ends up with no items.
+//   6. ensure_my_account() called from several connections at once for a user without an
+//      organization creates exactly ONE organization and ONE membership.
 //
-// Cleanup: issued documents and payments cannot be deleted by any role (that is the point
-// of the guard triggers), so the fixture is removed with
-// `SET LOCAL session_replication_role = replica`, which switches triggers off for that one
-// cleanup transaction. This is acceptable ONLY because the target is the local test
-// database; never do this against a real database.
+// session_replication_role = replica (switches triggers off for one transaction) is used
+// in exactly two places, both documented where they happen, and ONLY because the target is
+// the local test database. Never do this against a real database.
+//   * Fixture: two users are created without the signup trigger firing, to reproduce a
+//     signup whose provisioning failed (scenario 6 needs users with no organization).
+//   * Cleanup: issued documents, payments and the last owner of an organization cannot be
+//     deleted by any role (that is the point of the guard triggers), so the test data can
+//     only be removed with the triggers off.
 
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -34,6 +42,7 @@ const WORKERS = Number(process.env.CONCURRENCY_WORKERS ?? 20)
 const SAME_DOCUMENT_CALLERS = 5
 const ITEM_INSERTERS = 15
 const DELETE_RACE_ROUNDS = 9
+const ENSURE_CALLERS = 5
 // Each worker keeps its transaction open this long after finalizing, so the transactions
 // are guaranteed to overlap instead of finishing before the next one starts.
 const HOLD_SECONDS = 0.1
@@ -76,11 +85,21 @@ async function mustRunSql(sql) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // ---------------------------------------------------------------------------------------
-// Fixture: one organization, one user (owner), one client, and the drafts to finalize.
+// Fixture.
+//   * The main user signs up exactly as through Supabase Auth: one INSERT into auth.users.
+//     The on_auth_user_created trigger creates the profile, the organization, the owner
+//     membership and the tax settings. Scenarios 1 to 5 run in that organization, so the
+//     script also proves the signup path end to end.
+//   * Two "orphan" users have NO organization, for scenario 6. They are inserted with
+//     `SET LOCAL session_replication_role = replica` so that the signup trigger does not
+//     fire: that reproduces a signup whose provisioning failed. One has no profile either;
+//     the other already has a profile row (scenario 6 explains why both are needed).
 // ---------------------------------------------------------------------------------------
 const runId = randomUUID().slice(0, 8)
 const userId = randomUUID()
-const orgId = randomUUID()
+const orphanWithoutProfile = randomUUID()
+const orphanWithProfile = randomUUID()
+const allUsers = [userId, orphanWithoutProfile, orphanWithProfile]
 const clientId = randomUUID()
 const parallelDocs = Array.from({ length: WORKERS }, () => randomUUID())
 const rollbackDoc = randomUUID()
@@ -91,20 +110,31 @@ const deleteRaceDocs = Array.from({ length: DELETE_RACE_ROUNDS }, () => randomUU
 const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
 const gunKey = 700000000 + Math.floor(Math.random() * 1000000)
+// Created by the signup trigger; read back after the signup.
+let orgId = null
 
-const setupSql = `
+const authUserColumns = `(instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+                         raw_app_meta_data, raw_user_meta_data, created_at, updated_at)`
+const authUserRow = (id, label) => `('00000000-0000-0000-0000-000000000000', '${id}', 'authenticated', 'authenticated',
+        'concurrency-${label}-${runId}@test.local', '', now(),
+        '{"provider":"email","providers":["email"]}', '{"full_name":"Concurrency ${label}"}', now(), now())`
+
+const signupSql = `insert into auth.users ${authUserColumns} values ${authUserRow(userId, 'main')};`
+
+// LOCAL TEST DATABASE ONLY: triggers are switched off for this one transaction so the two
+// users are created WITHOUT the signup trigger provisioning them.
+const orphanUsersSql = `
 begin;
-insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-                        raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-values ('00000000-0000-0000-0000-000000000000', '${userId}', 'authenticated', 'authenticated',
-        'concurrency-${runId}@test.local', '', now(),
-        '{"provider":"email","providers":["email"]}', '{}', now(), now());
-insert into public.profiles (id, full_name) values ('${userId}', 'Concurrency test')
-  on conflict (id) do nothing;
-insert into public.organizations (id, name) values ('${orgId}', 'Concurrency test ${runId}');
-insert into public.organization_members (organization_id, user_id, role)
-  values ('${orgId}', '${userId}', 'owner');
-insert into public.tax_settings (organization_id) values ('${orgId}');
+set local session_replication_role = replica;
+insert into auth.users ${authUserColumns}
+values ${authUserRow(orphanWithoutProfile, 'orphan-a')},
+       ${authUserRow(orphanWithProfile, 'orphan-b')};
+insert into public.profiles (id, full_name) values ('${orphanWithProfile}', 'Concurrency orphan-b');
+commit;
+`
+
+const documentsSql = () => `
+begin;
 insert into public.clients (id, organization_id, name) values ('${clientId}', '${orgId}', 'Client');
 insert into public.documents (id, organization_id, type, client_id)
   values ${allDocs.map((id) => `('${id}', '${orgId}', 'facture', '${clientId}')`).join(',\n         ')};
@@ -115,29 +145,34 @@ commit;
 
 // LOCAL TEST DATABASE ONLY. With session_replication_role = replica, triggers do not fire
 // for this transaction: neither our guard triggers (which rightly refuse to delete issued
-// documents) nor the foreign-key triggers. So nothing cascades and every table is emptied
-// explicitly, children first. SET LOCAL ends with the transaction.
+// documents, payments or the last owner of an organization) nor the foreign-key triggers.
+// So nothing cascades and every table is emptied explicitly, children first. The
+// organizations to remove are found through the test users' memberships, which also covers
+// any organization a failing scenario created by mistake. SET LOCAL ends with the transaction.
+const userList = allUsers.map((id) => `'${id}'`).join(', ')
 const cleanupSql = `
 begin;
 set local session_replication_role = replica;
-delete from public.payments where organization_id = '${orgId}';
-delete from public.document_items where organization_id = '${orgId}';
-delete from public.documents where organization_id = '${orgId}';
-delete from public.document_counters where organization_id = '${orgId}';
-delete from public.clients where organization_id = '${orgId}';
-delete from public.tax_settings where organization_id = '${orgId}';
-delete from public.organization_members where organization_id = '${orgId}';
-delete from public.organizations where id = '${orgId}';
-delete from public.profiles where id = '${userId}';
-delete from auth.users where id = '${userId}';
+create temp table doomed_orgs on commit drop as
+  select distinct m.organization_id as id from public.organization_members m where m.user_id in (${userList});
+delete from public.payments where organization_id in (select id from doomed_orgs);
+delete from public.document_items where organization_id in (select id from doomed_orgs);
+delete from public.documents where organization_id in (select id from doomed_orgs);
+delete from public.document_counters where organization_id in (select id from doomed_orgs);
+delete from public.clients where organization_id in (select id from doomed_orgs);
+delete from public.tax_settings where organization_id in (select id from doomed_orgs);
+delete from public.organization_members where organization_id in (select id from doomed_orgs);
+delete from public.organizations where id in (select id from doomed_orgs);
+delete from public.profiles where id in (${userList});
+delete from auth.users where id in (${userList});
 commit;
 `
 
 /** SQL run by one API user: same role and JWT claims PostgREST sets for a real request. */
-function asUser(body) {
+function asUser(body, actingUserId = userId) {
   return `
 begin;
-select set_config('request.jwt.claims', '{"sub":"${userId}","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"${actingUserId}","role":"authenticated"}', true);
 set local role authenticated;
 ${body}
 `
@@ -239,10 +274,28 @@ const sameList = (a, b) => a.length === b.length && a.every((value, i) => value 
 
 // ---------------------------------------------------------------------------------------
 console.log(`Database container: ${container} (local)`)
-await mustRunSql(setupSql)
-console.log(`Fixture created: organization ${orgId}, ${allDocs.length} draft factures\n`)
 
+// Everything from here on is inside try/finally so the fixture is removed even on failure.
 try {
+  // 0. Signup: one INSERT into auth.users, the trigger does the rest ---------------------
+  console.log('[0] signup: one INSERT into auth.users, the trigger provisions the account')
+  await mustRunSql(signupSql)
+  const [profileCount, ownerCount, taxCount, organizationIds = ''] = (await mustRunSql(`
+select count(*) from public.profiles where id = '${userId}';
+select count(*) from public.organization_members where user_id = '${userId}' and role = 'owner';
+select count(*) from public.tax_settings t
+  join public.organization_members m on m.organization_id = t.organization_id where m.user_id = '${userId}';
+select coalesce(string_agg(organization_id::text, ','), '') from public.organization_members where user_id = '${userId}';
+`)).split('\n')
+  check(profileCount === '1' && ownerCount === '1' && taxCount === '1' && !organizationIds.includes(',') && organizationIds !== '',
+    'the signup created exactly one profile, one organization with the user as owner, and one tax_settings row',
+    `profiles: ${profileCount}, owner memberships: ${ownerCount}, tax_settings: ${taxCount}`)
+  if (failures.length > 0) throw new Error('signup did not provision the account; the other scenarios cannot run')
+  orgId = organizationIds
+  await mustRunSql(documentsSql())
+  await mustRunSql(orphanUsersSql)
+  console.log(`      organization ${orgId}, ${allDocs.length} draft factures, 2 users without an organization\n`)
+
   // 1. N different drafts, N connections, same instant ----------------------------------
   console.log(`[1] ${WORKERS} connections finalize ${WORKERS} different drafts at the same instant`)
   const parallel = await runTogether(parallelDocs.map(finalizeAndCommit))
@@ -396,11 +449,54 @@ where d.organization_id = '${orgId}' and d.status <> 'draft'
     violations.join('\n      '))
   check(outcomes.finalizeWon > 0 && outcomes.deleteWon > 0, 'both outcomes were observed',
     `finalize won: ${outcomes.finalizeWon}, delete won: ${outcomes.deleteWon}`)
+
+  // 6. ensure_my_account() called several times at once ---------------------------------
+  // Two kinds of user without an organization:
+  //   (a) no profile either. Here even without the advisory lock the calls are serialized
+  //       by accident: they all insert the same profile primary key, and the losers wait
+  //       for the winner to commit before they look at the memberships.
+  //   (b) a profile already exists. Nothing serializes the calls except the advisory lock
+  //       in provision_account(): this is the case that proves the lock is needed.
+  console.log(`\n[6] ${ENSURE_CALLERS} connections call ensure_my_account() at the same instant for a user without an organization`)
+  for (const [label, orphan] of [
+    ['(a) user with no profile', orphanWithoutProfile],
+    ['(b) user who already has a profile', orphanWithProfile],
+  ]) {
+    const call = asUser(`
+select 'ORG=' || public.ensure_my_account();
+select pg_sleep(${HOLD_SECONDS});
+commit;
+`, orphan)
+    const { results: ensureResults } = await runTogether(Array.from({ length: ENSURE_CALLERS }, () => call))
+    const ensureFailed = ensureResults.filter((r) => r.code !== 0)
+    const returnedOrganizations = new Set(
+      ensureResults.map((r) => /^ORG=(\S+)$/m.exec(r.stdout)?.[1]).filter(Boolean),
+    )
+    const [memberships, organizations, profiles, taxRows] = (await mustRunSql(`
+select count(*) from public.organization_members where user_id = '${orphan}';
+select count(distinct organization_id) from public.organization_members where user_id = '${orphan}';
+select count(*) from public.profiles where id = '${orphan}';
+select count(*) from public.tax_settings t
+  join public.organization_members m on m.organization_id = t.organization_id where m.user_id = '${orphan}';
+`)).split('\n').map(Number)
+    check(ensureFailed.length === 0, `${label}: all ${ENSURE_CALLERS} calls succeeded`,
+      ensureFailed.length ? `${ensureFailed.length} failed, first error: ${errorOf(ensureFailed[0].stderr)}` : '')
+    check(organizations === 1 && memberships === 1, `${label}: exactly ONE organization and ONE membership exist afterwards`,
+      `organizations: ${organizations}, memberships: ${memberships}`)
+    check(returnedOrganizations.size === 1, `${label}: every call returned the same organization id`,
+      `distinct organization ids returned: ${returnedOrganizations.size}`)
+    check(profiles === 1 && taxRows === 1, `${label}: one profile and one tax_settings row`,
+      `profiles: ${profiles}, tax_settings: ${taxRows}`)
+  }
+} catch (error) {
+  // A scenario could not run at all (not a failed check): report it and still clean up.
+  console.log(`\nABORTED: ${error.message}`)
+  failures.push('aborted')
 } finally {
   const cleanup = await runSql(cleanupSql)
   console.log(cleanup.code === 0
     ? '\nFixture removed.'
-    : `\nWARNING: cleanup failed, test data for organization ${orgId} is still in the LOCAL database:\n${cleanup.stderr}`)
+    : `\nWARNING: cleanup failed, test data of run ${runId} is still in the LOCAL database (npm run db:reset removes it):\n${cleanup.stderr}`)
 }
 
 console.log(failures.length === 0
