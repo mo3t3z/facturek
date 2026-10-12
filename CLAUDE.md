@@ -55,6 +55,14 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   privilege for `anon` / `authenticated`.
 - Non-draft documents are immutable at the DB level (triggers). Corrections will be
   credit notes (avoirs) in a later phase. "Overdue" is derived, never stored.
+- Two layers, on purpose. RLS policies and column privileges bind the API role only.
+  Triggers and CHECK constraints bind EVERY role (service role, SQL editor). A rule that
+  protects issued documents, items or payments must exist as a trigger or a constraint.
+- A guard trigger that looks at a parent document locks it with `SELECT ... FOR SHARE`
+  (this is what closes the race with `finalize_document()`), and calls
+  `private.reject_non_member()` first on INSERT: BEFORE triggers run before RLS, so
+  without it a trigger error could reveal the state of another organization's document.
+  A signed-in non-member always gets `42501 permission denied` from these triggers.
 
 - Memberships (`organization_members`) are never inserted from the API: no INSERT
   privilege, no INSERT policy. Only SECURITY DEFINER functions create them.
@@ -75,6 +83,14 @@ introduced.
 | DF006 | Issue date is earlier than the previous numbered document of the same organization, type and year | `public.finalize_document()` |
 | DF007 | Facture while `timbre_enabled` is true but `timbre_fiscal` has no amount | `public.finalize_document()` |
 | DF008 | Due date is before the issue date | `public.finalize_document()` |
+| DF010 | A non-draft document cannot be deleted | `private.guard_documents()` (trigger on `documents`) |
+| DF011 | A non-draft document is frozen: a column other than `status` / `updated_at` was changed (the message names the columns) | `private.guard_documents()` |
+| DF012 | Status transition not allowed. Allowed: draft → sent; facture sent → paid; devis sent → cancelled | `private.guard_documents()` |
+| DF013 | `converted_from` rule violated: only a facture, only from a devis that is neither draft nor cancelled, never from itself | `private.guard_document_conversion()` (trigger on `documents`) |
+| DF014 | The items of a non-draft document cannot be inserted, updated or deleted | `private.guard_document_items()` (trigger on `document_items`) |
+| DF015 | An item cannot be moved to another document or organization | `private.guard_document_items()` |
+| DF016 | A payment can only be recorded on a facture whose status is `sent` | `private.guard_payments()` (trigger on `payments`) |
+| DF017 | Payments are append-only: no UPDATE, no DELETE, for any role | `private.guard_payments()` |
 | DF020 | Membership rule violated: the last owner cannot be removed or demoted; `organization_id` / `user_id` of a membership cannot change | `private.guard_organization_members()` (trigger on `organization_members`) |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
@@ -86,8 +102,14 @@ introduced.
 ### TODO (later phases, not started)
 - Invitation flow: tokens, accepted by the invited user, membership created by a
   SECURITY DEFINER function. Until then an organization has only its signup owner.
-- Payment corrections: payments cannot be updated or deleted from the API. A mistake
-  must be corrected with a reversal entry (design and build later).
+- Payment corrections: payments cannot be updated or deleted by any role (DF017). A
+  mistake must be corrected with a reversal entry (design and build later).
+- Credit notes (avoirs): the only way to correct or cancel a numbered facture. Until
+  they exist a numbered facture cannot be cancelled at all.
+- Status changes after `sent` (mark a facture paid, cancel a devis) have no API path yet:
+  the API role cannot write `status`. They need SECURITY DEFINER functions.
+- Have an accountant check the status transition map and the two date rules of
+  `finalize_document()`.
 - Ownership transfer and account deletion: today the last owner cannot leave or be
   deleted (the DF020 trigger also blocks the `auth.users` cascade).
 
