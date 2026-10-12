@@ -63,6 +63,9 @@ describe('RedirectIfAuthed', () => {
     '/\\evil.com',
     '/%2F%2Fevil.com',
     '/%5Cevil.com',
+    '/.//evil.com',
+    '/a/..//evil.com',
+    '/%2e%2e//evil.com',
   ])('ignores the hostile ?next=%s and goes to /app', (next) => {
     const { router } = renderRoutes(routes, `/login?next=${encodeURIComponent(next)}`, loggedIn)
     expect(location(router)).toBe('/app')
