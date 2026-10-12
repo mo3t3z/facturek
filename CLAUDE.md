@@ -17,6 +17,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run db:start` / `npm run db:stop` – local Supabase (needs Docker running)
 - `npm run db:reset` – re-apply all migrations to the LOCAL database
 - `npm run test:db` – pgTAP tests in `supabase/tests`
+- `npm run test:concurrency` – many real connections call `finalize_document()` at once
+  (local database only; pgTAP cannot test this because it runs in one session)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 
 ## Structure
@@ -48,6 +50,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - Document numbers are assigned only by `public.finalize_document()` in Postgres
   (gapless per org/type/year), never in the frontend. Drafts have no number.
 - Finalizing snapshots tax values plus seller and buyer identity onto the document.
+  The snapshot columns, `status`, `number` and `year` are not writable by the API role.
+- `document_counters` is only touched by `finalize_document()`: RLS on, no policy, no
+  privilege for `anon` / `authenticated`.
 - Non-draft documents are immutable at the DB level (triggers). Corrections will be
   credit notes (avoirs) in a later phase. "Overdue" is derived, never stored.
 
@@ -61,6 +66,15 @@ introduced.
 
 | Code  | Meaning | Where raised |
 |-------|---------|--------------|
+| DF000 | Not authenticated: the call carries no user id | `public.finalize_document()` |
+| DF001 | Document not found. Deliberately the same error for an id that does not exist and for a document of another organization | `public.finalize_document()` |
+| DF002 | Document is not a draft (already finalized) | `public.finalize_document()` |
+| DF003 | Document has no client | `public.finalize_document()` |
+| DF004 | Document has no items | `public.finalize_document()` |
+| DF005 | Issue date is in the future (today = Africa/Tunis) | `public.finalize_document()` |
+| DF006 | Issue date is earlier than the previous numbered document of the same organization, type and year | `public.finalize_document()` |
+| DF007 | Facture while `timbre_enabled` is true but `timbre_fiscal` has no amount | `public.finalize_document()` |
+| DF008 | Due date is before the issue date | `public.finalize_document()` |
 | DF020 | Membership rule violated: the last owner cannot be removed or demoted; `organization_id` / `user_id` of a membership cannot change | `private.guard_organization_members()` (trigger on `organization_members`) |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
