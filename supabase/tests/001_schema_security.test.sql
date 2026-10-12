@@ -12,11 +12,27 @@ select is_empty(
 select is_empty(
   $$ select c.relname::text
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and c.relkind = 'r'
+     where n.nspname = 'public' and c.relkind = 'r' and c.relname <> 'document_counters'
        and not exists (
          select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname
        ) $$,
-  'every public table has at least one policy'
+  'every public table except document_counters has at least one policy'
+);
+
+-- document_counters is the one table with no policy at all: nothing can reach it from the API.
+select is_empty(
+  $$ select policyname::text from pg_policies
+     where schemaname = 'public' and tablename = 'document_counters' $$,
+  'document_counters has no policy'
+);
+select is_empty(
+  $$ select r.rolname, p.privilege
+     from (values ('anon'), ('authenticated')) r (rolname)
+     cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p (privilege)
+     where has_table_privilege(r.rolname, 'public.document_counters', p.privilege)
+        or (p.privilege in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
+            and has_any_column_privilege(r.rolname, 'public.document_counters', p.privilege)) $$,
+  'anon and authenticated have no privilege of any kind on document_counters'
 );
 
 select is_empty(
@@ -66,7 +82,7 @@ select bag_eq(
   $$ select c.column_name::text from information_schema.columns c
      where c.table_schema = 'public' and c.table_name = 'tax_settings'
        and has_column_privilege('authenticated', 'public.tax_settings', c.column_name, 'UPDATE') $$,
-  $$ values ('default_tva_rate'), ('timbre_fiscal'), ('retenue_enabled'), ('retenue_rate'), ('retenue_threshold') $$,
+  $$ values ('default_tva_rate'), ('timbre_enabled'), ('timbre_fiscal'), ('retenue_enabled'), ('retenue_rate'), ('retenue_threshold') $$,
   'authenticated can UPDATE only the editable columns of tax_settings (not organization_id)'
 );
 select ok(
@@ -90,6 +106,31 @@ select bag_eq(
        and has_column_privilege('authenticated', 'public.documents', c.column_name, 'UPDATE') $$,
   $$ values ('client_id'), ('issue_date'), ('due_date'), ('notes'), ('converted_from') $$,
   'authenticated can UPDATE only content columns of documents (no status, number, year, id, organization_id)'
+);
+-- The two tests above already prove it (exact lists); this one names the snapshot columns
+-- so that a future GRANT on any of them fails with an obvious message.
+select is_empty(
+  $$ select c.column_name::text, p.privilege
+     from information_schema.columns c
+     cross join (values ('INSERT'), ('UPDATE')) p (privilege)
+     where c.table_schema = 'public' and c.table_name = 'documents'
+       and c.column_name in (
+         'seller_name', 'seller_matricule_fiscal', 'seller_address',
+         'buyer_name', 'buyer_matricule_fiscal', 'buyer_address',
+         'timbre_fiscal', 'retenue_enabled', 'retenue_rate', 'retenue_threshold'
+       )
+       and has_column_privilege('authenticated', 'public.documents', c.column_name, p.privilege) $$,
+  'authenticated can neither INSERT nor UPDATE any snapshot column of documents'
+);
+select is(
+  (select count(*)::int from information_schema.columns
+   where table_schema = 'public' and table_name = 'documents'
+     and column_name in (
+       'seller_name', 'seller_matricule_fiscal', 'seller_address',
+       'buyer_name', 'buyer_matricule_fiscal', 'buyer_address',
+       'timbre_fiscal', 'retenue_enabled', 'retenue_rate', 'retenue_threshold'
+     )),
+  10, 'documents has the 10 snapshot columns'
 );
 select bag_eq(
   $$ select c.column_name::text from information_schema.columns c
@@ -131,6 +172,23 @@ select bag_eq(
      where n.nspname = 'private' and has_function_privilege('authenticated', p.oid, 'EXECUTE') $$,
   $$ values ('is_org_member'), ('has_org_role'), ('shares_org_with') $$,
   'authenticated can execute exactly the three RLS helpers in private'
+);
+-- The RPC surface: the complete list of functions the API role can call.
+select bag_eq(
+  $$ select p.proname::text
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE') $$,
+  $$ values ('finalize_document') $$,
+  'authenticated can execute exactly one function in public: finalize_document'
+);
+select ok(
+  not has_function_privilege('anon', 'public.finalize_document(uuid)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.finalize_document(uuid)', 'EXECUTE'),
+  'neither anon nor service_role can execute finalize_document'
+);
+select is(
+  (select p.prosecdef from pg_proc p where p.oid = 'public.finalize_document(uuid)'::regprocedure),
+  true, 'finalize_document is SECURITY DEFINER'
 );
 
 -- No tax value is assumed by the schema.
@@ -184,6 +242,16 @@ select throws_ok('delete from public.document_items', '42501', null, 'anon canno
 select throws_ok(
   $$ update public.tax_settings set timbre_fiscal = 0 $$,
   '42501', null, 'anon cannot update tax_settings'
+);
+select throws_ok(
+  $$ select public.finalize_document(tests.id('doc_a')) $$,
+  '42501', null, 'anon cannot call finalize_document'
+);
+select throws_ok('select * from public.document_counters', '42501', null, 'anon cannot read document_counters');
+select throws_ok(
+  $$ insert into public.document_counters (organization_id, type, year, last_number)
+     values (tests.id('org_a'), 'facture', 2026, 99) $$,
+  '42501', null, 'anon cannot write document_counters'
 );
 
 select tests.clear_auth();

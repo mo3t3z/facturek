@@ -146,6 +146,22 @@ begin
 end;
 $$;
 
+-- Calls finalize_document() as the given user and returns the number it assigned.
+-- Leaves no impersonation behind. Use it only where success is expected.
+create or replace function tests.finalize_as(p_email text, p_document_id uuid)
+returns integer
+language plpgsql
+as $$
+declare
+  v_number integer;
+begin
+  perform tests.authenticate_as(p_email);
+  select d.number into v_number from public.finalize_document(p_document_id) d;
+  perform tests.clear_auth();
+  return v_number;
+end;
+$$;
+
 -- Standard world used by the test files:
 --   org_a: alice (owner), carol (admin), dave (member)      org_b: bob (owner)
 -- carol and dave also own a personal organization of their own.
