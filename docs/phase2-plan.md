@@ -171,3 +171,15 @@ TODO(accountant): verify the rule before real use.
   matricule fiscal, e-mail, phone). No user text is ever put into a PostgREST filter.
   Limitation: PostgREST returns at most 1000 rows; server-side search and paging come when
   a real organization gets close to that.
+
+## TODO (found during the P2a review)
+
+- `isNetworkError()` in `src/lib/errors.ts` treats EVERY `TypeError` as a network error
+  ("what fetch() throws"). A programming bug that throws a `TypeError` inside a query or
+  mutation function is therefore shown as "Connexion au serveur impossible" and masked.
+  Narrow the test (for example to the fetch failure messages) and add tests.
+- `PGRST116` (no row: the client was deleted while its form was open) has a specific
+  message only on the client edit screen, through the second argument of
+  `errorMessageKey()` (`clients.notFound`). `errors.ts` itself does not know the code, so
+  any other screen that uses `.single()` falls back to the generic message. Decide whether
+  it gets a generic entry in `DB_CODES` when the documents screens arrive (P2c).
