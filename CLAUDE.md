@@ -153,6 +153,9 @@ introduced.
   from ESLint. (Prettier is not installed; if it is added, ignore this file there too.)
 
 ### TODO (later phases, not started)
+- Before the invitation flow exists, the e2e/concurrency scripts must record the
+  organization ids they create and delete only those (today they find organizations
+  through memberships).
 - Invitation flow: tokens, accepted by the invited user, membership created by a
   SECURITY DEFINER function. Until then an organization has only its signup owner.
 - Payment corrections: payments cannot be updated or deleted by any role (DF017). A
