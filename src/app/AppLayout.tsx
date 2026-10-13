@@ -38,6 +38,11 @@ export function AppLayout() {
                 </NavLink>
               </li>
               <li>
+                <NavLink to="/app/documents" className={navLink}>
+                  {t('nav.documents')}
+                </NavLink>
+              </li>
+              <li>
                 <NavLink to="/app/clients" className={navLink}>
                   {t('nav.clients')}
                 </NavLink>

@@ -53,6 +53,15 @@ describe('source rules', () => {
     expect(filesContaining(/\.select\(\s*\)/)).toEqual([])
   })
 
+  it('keeps document dates as plain text: no Date object in src/features/documents', () => {
+    // A date of a document is a calendar day. Going through Date / toISOString converts a
+    // local midnight to UTC, which is the day before in Tunisia (UTC+1).
+    const inDocuments = (pattern: RegExp) => filesContaining(pattern).filter((path) => path.includes('/features/documents/'))
+    expect(appSources.some(([path]) => path.includes('/features/documents/'))).toBe(true)
+    expect(inDocuments(/new Date\(|\bDate\.(now|parse|UTC)\b/)).toEqual([])
+    expect(inDocuments(/toISOString|toLocaleDateString|toJSON\(|valueAsDate|getTimezoneOffset/)).toEqual([])
+  })
+
   it('reads the environment in exactly one place', () => {
     expect(filesContaining(/import\.meta\.env/)).toEqual(['../lib/supabase.ts'])
   })

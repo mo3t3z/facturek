@@ -9,6 +9,9 @@ import { ClientCreatePage } from '../features/clients/pages/ClientCreatePage'
 import { ClientEditPage } from '../features/clients/pages/ClientEditPage'
 import { ClientsListPage } from '../features/clients/pages/ClientsListPage'
 import { SettingsPage } from '../features/settings/pages/SettingsPage'
+import { DocumentCreatePage } from '../features/documents/pages/DocumentCreatePage'
+import { DocumentPage } from '../features/documents/pages/DocumentPage'
+import { DocumentsListPage } from '../features/documents/pages/DocumentsListPage'
 import { RequireOrganization } from '../features/organizations/RequireOrganization'
 import { AppHomePage } from './AppHomePage'
 import { AppLayout } from './AppLayout'
@@ -42,6 +45,9 @@ export const routes: RouteObject[] = [
               { path: '/app/clients/new', element: <ClientCreatePage /> },
               { path: '/app/clients/:clientId/edit', element: <ClientEditPage /> },
               { path: '/app/settings', element: <SettingsPage /> },
+              { path: '/app/documents', element: <DocumentsListPage /> },
+              { path: '/app/documents/new', element: <DocumentCreatePage /> },
+              { path: '/app/documents/:documentId', element: <DocumentPage /> },
             ],
           },
         ],
