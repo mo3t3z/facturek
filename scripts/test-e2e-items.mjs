@@ -204,7 +204,9 @@ try {
   const smuggled = await api('POST', '/rest/v1/document_items?select=id', {
     token: b.token, headers: SINGLE, body: { organization_id: b.organizationId, document_id: documentId, position: 99, ...lines[0] },
   })
-  check(smuggled.status === 409 && smuggled.json?.code === '23503', 'B naming their own organization with A\'s document: 23503 (composite foreign key)', outcome(smuggled))
+  // The RLS policy looks for a draft with that id in B's own organization and finds none,
+  // so it refuses the row before the composite foreign key is even checked.
+  check(smuggled.status === 403 && smuggled.json?.code === '42501', 'B naming their own organization with A\'s document: 42501 as well', outcome(smuggled))
   const foreignUpdate = await api('PATCH', itemPath(a.organizationId, documentId, ids[0]), { token: b.token, headers: SINGLE, body: { description: 'taken over' } })
   check(foreignUpdate.status === 406 && foreignUpdate.json?.code === 'PGRST116', 'B updating a line: no row (PGRST116)', outcome(foreignUpdate))
   const foreignDelete = await api('DELETE', itemPath(a.organizationId, documentId, ids[0]), { token: b.token, headers: SINGLE })
