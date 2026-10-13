@@ -7,6 +7,11 @@ import type { ClientValues } from './schemas'
 
 const COLUMNS = 'id, name, matricule_fiscal, address, email, phone'
 
+// PostgREST never returns more than max_rows (1000, supabase/config.toml). The list asks
+// for exactly that many, so "the list is full" can be detected and told to the user:
+// beyond it, the list and its search (which runs on the loaded rows) are incomplete.
+export const CLIENTS_LIMIT = 1000
+
 export type Client = {
   id: string
   name: string
@@ -35,6 +40,7 @@ export async function listClients(organizationId: string): Promise<Client[]> {
     .select(COLUMNS)
     .eq('organization_id', organizationId)
     .order('name')
+    .limit(CLIENTS_LIMIT)
   if (error) throw error
   return data
 }

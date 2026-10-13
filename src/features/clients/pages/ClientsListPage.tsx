@@ -6,7 +6,7 @@ import { Alert } from '../../../components/FormControls'
 import { dangerButton, primaryButton, secondaryButton } from '../../../components/styles'
 import { errorMessageKey } from '../../../lib/errors'
 import { useOrganization } from '../../organizations/useOrganization'
-import { type Client, clientsKey, deleteClient, listClients } from '../api'
+import { type Client, CLIENTS_LIMIT, clientsKey, deleteClient, listClients } from '../api'
 import { filterClients } from '../search'
 
 // Deleting a client can only hit a foreign key for one reason: a devis or a facture
@@ -82,6 +82,11 @@ export function ClientsListPage() {
 
       {clients.isSuccess && (
         <>
+          {clients.data.length >= CLIENTS_LIMIT && (
+            <p role="status" className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {t('clients.truncated', { count: CLIENTS_LIMIT })}
+            </p>
+          )}
           {/* Announced by screen readers each time the search changes the result. */}
           <p role="status" className="mb-3 text-sm text-slate-600">
             {clients.data.length === 0

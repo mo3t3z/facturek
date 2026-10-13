@@ -39,6 +39,7 @@
     "empty": "Aucun client pour le moment. Ajoutez votre premier client.",
     "noMatch": "Aucun client ne correspond à cette recherche.",
     "loadError": "La liste des clients n'a pas pu être chargée.",
+    "truncated": "Seuls les {{count}} premiers clients (par ordre alphabétique) sont chargés : la liste et la recherche peuvent être incomplètes.",
     "edit": "Modifier",
     "editNamed": "Modifier {{name}}",
     "delete": "Supprimer",

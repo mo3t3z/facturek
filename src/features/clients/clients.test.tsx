@@ -9,6 +9,7 @@ type Call = {
   table: string
   op: 'select' | 'insert' | 'update' | 'delete'
   payload?: unknown
+  limit?: number
   filters: Record<string, unknown>
 }
 type Result = { data: unknown; error: object | null }
@@ -28,6 +29,10 @@ vi.mock('../../lib/supabase', () => {
     const query = {
       select: () => query,
       order: () => query,
+      limit: (count: number) => {
+        call.limit = count
+        return query
+      },
       insert: (payload: unknown) => {
         call.op = 'insert'
         call.payload = payload
@@ -153,7 +158,10 @@ describe('clients list', () => {
     expect(screen.getByText('1234567/A/M/000')).toBeInTheDocument()
     expect(screen.getByText('2 clients')).toBeInTheDocument()
     // The organization is named in the query itself, not left to RLS alone.
-    expect(clientCalls('select')).toEqual([{ table: 'clients', op: 'select', filters: { organization_id: 'org-1' } }])
+    expect(clientCalls('select')).toEqual([
+      { table: 'clients', op: 'select', limit: 1000, filters: { organization_id: 'org-1' } },
+    ])
+    expect(screen.queryByText(/liste et la recherche peuvent être incomplètes/)).not.toBeInTheDocument()
   })
 
   it('searches without accents or case, in the name, the phone and the matricule', async () => {
@@ -201,6 +209,24 @@ describe('clients list', () => {
     fail = false
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByText('Société Élan')).toBeInTheDocument()
+  })
+
+  it('warns that the list may be incomplete when the 1000 row limit is reached', async () => {
+    stored = Array.from({ length: 1000 }, (_, index) => ({ ...bechir, id: `id-${index}`, name: `Client ${index}` }))
+    const full = open('/app/clients')
+    expect(await screen.findByText(/^Seuls les 1000 premiers clients/)).toHaveTextContent(
+      'Seuls les 1000 premiers clients (par ordre alphabétique) sont chargés : la liste et la recherche peuvent être incomplètes.',
+    )
+    // The warning stays while searching: that is when a missing client would mislead.
+    await user.type(screen.getByRole('searchbox'), 'Client 999')
+    expect(screen.getByText('1 client')).toBeInTheDocument()
+    expect(screen.getByText(/^Seuls les 1000 premiers clients/)).toBeInTheDocument()
+    full.unmount()
+
+    stored = stored.slice(0, 999)
+    open('/app/clients')
+    expect(await screen.findByText('999 clients')).toBeInTheDocument()
+    expect(screen.queryByText(/^Seuls les 1000 premiers clients/)).not.toBeInTheDocument()
   })
 
   it('renders a hostile client name as plain text', async () => {
