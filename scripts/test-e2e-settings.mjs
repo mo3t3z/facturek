@@ -167,6 +167,13 @@ try {
   check(cleared.status === 200 && cleared.json?.default_tva_rate === null && cleared.json?.timbre_fiscal === null,
     'empty fields are stored as NULL', cleared.text)
 
+  // CHECK tax_settings_timbre_enabled_has_amount: the amount is NULL at this point.
+  const switchOnly = await api('PATCH', taxPath(a.organizationId, TAX_TEXT), { token: a.token, headers: SINGLE, body: { timbre_enabled: true } })
+  check(switchOnly.status === 400 && switchOnly.json?.code === '23514',
+    'enabling the timbre without an amount is refused by the database (23514)', `HTTP ${switchOnly.status}, code ${switchOnly.json?.code}`)
+  const stillOff = psql(`select timbre_enabled::text || '|' || coalesce(timbre_fiscal::text, 'NULL') from public.tax_settings where organization_id = '${a.organizationId}';`)
+  check(stillOff === 'false|NULL', 'and nothing was written', stillOff)
+
   const tooLarge = await api('PATCH', taxPath(a.organizationId, TAX_TEXT), {
     token: a.token, headers: SINGLE, body: { default_tva_rate: '100.001' },
   })

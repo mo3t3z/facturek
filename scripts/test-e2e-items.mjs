@@ -8,9 +8,11 @@
 //   * once the document is issued by the real finalize_document(), its owner can no longer
 //     insert, update or delete a line (the exact answers are printed);
 //   * computeTotals() of src/lib/money, run on the lines read through the API, gives
-//     exactly what Postgres computes on the same rows with the rounding rule of the vector
-//     generator (round(quantity * unit_price, 3) per line, round(base * rate / 100, 3)
-//     once per rate). The compared numbers are printed.
+//     exactly what private.compute_totals() gives on the same rows. That function is the
+//     one that writes the totals of an issued document, so this is a comparison with the
+//     production code. The compared numbers are printed;
+//   * once issued, the totals STORED on the document (read through the API, as text) are
+//     those same numbers.
 //
 //   npm run test:e2e-items      (needs the local stack: npm run db:start)
 //
@@ -239,24 +241,25 @@ try {
     totalHT: toDbNumeric(totals.totalHT),
     totalTVA: toDbNumeric(totals.totalTVA),
     totalTTC: toDbNumeric(totals.totalTTC),
+    netAPayer: toDbNumeric(totals.netAPayer),
   }
-  // The same expressions as scripts/generate-money-vectors.mjs: round(quantity * unit_price, 3)
-  // per line; per rate, the sum of those and round(base * rate / 100, 3). Read-only.
-  const postgres = JSON.parse(psql(`
-with line_total as (
-  select position, tva_rate as rate, round(quantity * unit_price, 3) as total
-  from public.document_items where organization_id = '${a.organizationId}' and document_id = '${documentId}'
-),
-rate_total as (
-  select rate, sum(total) as base, round(sum(total) * rate / 100, 3) as tva from line_total group by rate
-)
+  // private.compute_totals() is the function that writes the totals of an issued document:
+  // the comparison is with the production code, not with a copy of its formula. Read-only.
+  const computed = JSON.parse(psql(`
 select json_build_object(
-  'lineTotals', (select json_agg(total::text order by position) from line_total),
-  'tvaLines', (select json_agg(json_build_array(round(rate, 3)::text, base::text, tva::text) order by rate) from rate_total),
-  'totalHT', (select round(sum(base), 3)::text from rate_total),
-  'totalTVA', (select round(sum(tva), 3)::text from rate_total),
-  'totalTTC', (select round(sum(base) + sum(tva), 3)::text from rate_total)
-)::text;`))
+  'lineTotals', (select json_agg(u.total::text order by u.n) from unnest(t.line_totals) with ordinality as u (total, n)),
+  'tvaBreakdown', t.tva_breakdown,
+  'totalHT', t.total_ht::text,
+  'totalTVA', t.total_tva::text,
+  'totalTTC', t.total_ttc::text,
+  'netAPayer', t.net_a_payer::text
+)::text
+from private.compute_totals(
+  (select array_agg(row(i.quantity, i.unit_price, i.tva_rate)::private.document_line order by i.position)
+   from public.document_items i where i.organization_id = '${a.organizationId}' and i.document_id = '${documentId}'),
+  null
+) t;`))
+  const postgres = { ...computed, tvaLines: computed.tvaBreakdown.map((row) => [row.rate, row.base, row.tva]) }
   console.log(`      line totals   TypeScript: ${typescript.lineTotals.join(' | ')}`)
   console.log(`                    Postgres:   ${postgres.lineTotals.join(' | ')}`)
   for (const [index, row] of postgres.tvaLines.entries()) {
@@ -266,8 +269,9 @@ select json_build_object(
   console.log(`      total HT  ${typescript.totalHT} / ${postgres.totalHT}   total TVA  ${typescript.totalTVA} / ${postgres.totalTVA}   total TTC  ${typescript.totalTTC} / ${postgres.totalTTC}   (TypeScript / Postgres)`)
   check(JSON.stringify(typescript.lineTotals) === JSON.stringify(postgres.lineTotals), 'the line totals are identical')
   check(JSON.stringify(typescript.tvaLines) === JSON.stringify(postgres.tvaLines), 'the base and the TVA of each rate are identical')
-  check(typescript.totalHT === postgres.totalHT && typescript.totalTVA === postgres.totalTVA && typescript.totalTTC === postgres.totalTTC,
-    'total HT, total TVA and total TTC are identical')
+  check(typescript.totalHT === postgres.totalHT && typescript.totalTVA === postgres.totalTVA && typescript.totalTTC === postgres.totalTTC
+    && typescript.netAPayer === postgres.netAPayer,
+    'total HT, total TVA, total TTC and net à payer are identical')
   check(typescript.lineTotals[3] === '0.001' && typescript.tvaLines.find((row) => row[0] === '19.000')?.[2] === '0.001',
     'the tie cases behave as designed: 0.0005 rounds up per line, and the 19 % TVA is rounded once on the base 0.007',
     `line 4: ${typescript.lineTotals[3]}, 19 %: base ${typescript.tvaLines.find((row) => row[0] === '19.000')?.[1]}, TVA ${typescript.tvaLines.find((row) => row[0] === '19.000')?.[2]}`)
@@ -276,6 +280,18 @@ select json_build_object(
   console.log('\n[6] after the real finalize_document(), A can no longer insert, update or delete lines')
   const finalized = await api('POST', '/rest/v1/rpc/finalize_document', { token: a.token, body: { p_document_id: documentId } })
   check(finalized.status === 200 && finalized.json?.status === 'sent', 'finalize_document(), called by the owner, issues the facture', outcome(finalized))
+  // The totals stored at issue, read as the frontend will read them: as text.
+  const storedTotals = await api('GET',
+    `/rest/v1/documents?select=total_ht::text,total_tva::text,total_ttc::text,timbre_fiscal::text,net_a_payer::text,tva_breakdown&organization_id=eq.${a.organizationId}&id=eq.${documentId}`,
+    { token: a.token, headers: { Accept: 'application/vnd.pgrst.object+json' } })
+  const issued = storedTotals.json ?? {}
+  console.log(`      stored: total HT ${issued.total_ht}   total TVA ${issued.total_tva}   total TTC ${issued.total_ttc}   timbre ${issued.timbre_fiscal}   net à payer ${issued.net_a_payer}`)
+  check(issued.total_ht === typescript.totalHT && issued.total_tva === typescript.totalTVA && issued.total_ttc === typescript.totalTTC
+    && issued.net_a_payer === typescript.netAPayer && issued.timbre_fiscal === null,
+    'the totals stored on the issued facture are exactly those computeTotals() gave (no timbre: this organization does not apply it)')
+  check(JSON.stringify((issued.tva_breakdown ?? []).map((row) => [row.rate, row.base, row.tva])) === JSON.stringify(typescript.tvaLines)
+    && (issued.tva_breakdown ?? []).every((row) => typeof row.rate === 'string' && typeof row.base === 'string' && typeof row.tva === 'string'),
+    'the stored TVA table is identical too, and every value in it is a string, never a JSON number')
   const lateInsert = await api('POST', '/rest/v1/document_items?select=id', {
     token: a.token, headers: SINGLE, body: { organization_id: a.organizationId, document_id: documentId, position: 99, ...lines[1] },
   })

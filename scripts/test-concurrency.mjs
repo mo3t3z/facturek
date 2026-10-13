@@ -395,6 +395,20 @@ select count(*) from public.document_items where document_id = '${itemRaceDoc}';
     wronglyRejected.length ? `unexpected error: ${errorOf(wronglyRejected[0].stderr)}` : '')
   check(inserted.length > 0 && rejected.length > 0, 'both outcomes were observed (some inserts before, some during the finalize)',
     `inserted: ${inserted.length}, rejected: ${rejected.length}`)
+  // The totals written at issue (trigger set_document_totals) must be those of exactly the
+  // lines that are in the document: an insert that won the race is in the total, one that
+  // lost is not.
+  const [raceStored, raceComputed] = (await mustRunSql(`
+select total_ht::text || ' / ' || net_a_payer::text from public.documents where id = '${itemRaceDoc}';
+select t.total_ht::numeric(12,3)::text || ' / ' || t.net_a_payer::numeric(12,3)::text
+from private.compute_totals(
+  (select array_agg(row(i.quantity, i.unit_price, i.tva_rate)::private.document_line)
+   from public.document_items i where i.document_id = '${itemRaceDoc}'),
+  (select d.timbre_fiscal from public.documents d where d.id = '${itemRaceDoc}')) t;
+`)).split('\n')
+  check(raceStored === raceComputed && raceStored !== '',
+    'the stored totals (total HT / net à payer) are those of exactly the lines stored in the document',
+    `stored: ${raceStored}, computed from the ${itemsStored} stored lines: ${raceComputed}`)
 
   // 5. The last item deleted while the document is being finalized -----------------------
   // Several rounds, each with a fresh draft holding exactly one item. The round number
@@ -444,6 +458,24 @@ where d.organization_id = '${orgId}' and d.status <> 'draft'
   and not exists (select 1 from public.document_items i where i.document_id = d.id);
 `)
   check(sentWithoutItems === '0', 'no issued document is left without items', `issued documents with zero items: ${sentWithoutItems}`)
+  // Every document issued by this run, whatever the race it went through.
+  const [issuedCount, wrongTotals, draftsWithTotals] = (await mustRunSql(`
+select count(*) from public.documents d where d.organization_id = '${orgId}' and d.status <> 'draft';
+select count(*) from public.documents d
+cross join lateral private.compute_totals(
+  (select array_agg(row(i.quantity, i.unit_price, i.tva_rate)::private.document_line)
+   from public.document_items i where i.document_id = d.id),
+  d.timbre_fiscal) t
+where d.organization_id = '${orgId}' and d.status <> 'draft'
+  and (d.total_ht, d.total_tva, d.total_ttc, d.net_a_payer, d.tva_breakdown)
+      is distinct from (t.total_ht, t.total_tva, t.total_ttc, t.net_a_payer, t.tva_breakdown);
+select count(*) from public.documents d
+where d.organization_id = '${orgId}' and d.status = 'draft' and num_nonnulls(d.total_ht, d.total_tva, d.total_ttc, d.net_a_payer, d.tva_breakdown) > 0;
+`)).split('\n')
+  check(Number(issuedCount) > 0 && wrongTotals === '0',
+    `the stored totals of all ${issuedCount} issued documents equal private.compute_totals() on their stored lines`,
+    `issued documents whose stored totals differ: ${wrongTotals}`)
+  check(draftsWithTotals === '0', 'no draft stores a total', `drafts with a stored total: ${draftsWithTotals}`)
   check(violations.length === 0,
     'every round ended in one of the two valid outcomes (finalize fails with DF004, or the delete is rejected)',
     violations.join('\n      '))
