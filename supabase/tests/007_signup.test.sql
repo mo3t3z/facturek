@@ -3,6 +3,11 @@
 begin;
 select * from no_plan();
 
+-- The local database may already hold real accounts (a developer who signed up in the
+-- app). Counts over a whole table are therefore compared to what was there before this
+-- file created anything, never to an absolute number.
+select set_config('tests.organizations_before', (select count(*) from public.organizations)::text, true);
+
 -- =========================================================================================
 -- 1. A SIGNUP CREATES A COMPLETE ACCOUNT
 -- =========================================================================================
@@ -174,8 +179,8 @@ select throws_ok(
 select tests.clear_auth();
 
 select is(
-  (select count(*)::int from public.organizations),
-  7, 'after all of the above there are still exactly seven organizations: one per signup');
+  (select count(*)::int from public.organizations) - current_setting('tests.organizations_before')::int,
+  7, 'after all of the above this file has created exactly seven organizations: one per signup');
 
 -- =========================================================================================
 -- 4. THE TRIGGER NEVER MAKES A SIGNUP FAIL, AND THE USER CAN REPAIR THEIR ACCOUNT
