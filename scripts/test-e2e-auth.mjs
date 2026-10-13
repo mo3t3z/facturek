@@ -123,6 +123,9 @@ const amrMethods = (accessToken) => {
 const runId = randomUUID().slice(0, 8)
 const email = `e2e-${runId}@test.local`
 const unknownEmail = `e2e-nobody-${runId}@test.local`
+const shortPasswordEmail = `e2e-short-${runId}@test.local`
+// Every address this run can create a user for. Cleanup removes these users and nothing else.
+const runEmails = [email, unknownEmail, shortPasswordEmail]
 const firstPassword = randomBytes(18).toString('base64url')
 const secondPassword = randomBytes(18).toString('base64url')
 const seenMail = new Set()
@@ -133,7 +136,7 @@ console.log(`Local API: ${apiUrl}   mailbox: ${mailUrl}   site_url: ${siteUrl}\n
 try {
   // 1. Signup -----------------------------------------------------------------------------
   console.log('[1] signup through the Auth API')
-  const shortPassword = await api('POST', '/auth/v1/signup', { body: { email: `e2e-short-${runId}@test.local`, password: '123456789' } })
+  const shortPassword = await api('POST', '/auth/v1/signup', { body: { email: shortPasswordEmail, password: '123456789' } })
   check(shortPassword.status === 422 && shortPassword.json?.error_code === 'weak_password',
     'a 9 character password is refused by the server (minimum is 10)',
     `HTTP ${shortPassword.status}, code ${shortPassword.json?.error_code}`)
@@ -269,7 +272,8 @@ select (select count(*) from public.profiles where id = '${userId}' and full_nam
     psql(`
 begin;
 set local session_replication_role = replica;
-create temp table doomed_users on commit drop as select id from auth.users where email like 'e2e-%-${runId}@test.local' or email = '${email}';
+create temp table doomed_users on commit drop as
+  select id from auth.users where email in (${runEmails.map((address) => `'${address}'`).join(', ')});
 create temp table doomed_orgs on commit drop as
   select distinct organization_id as id from public.organization_members where user_id in (select id from doomed_users);
 delete from public.tax_settings where organization_id in (select id from doomed_orgs);
@@ -277,8 +281,9 @@ delete from public.organization_members where organization_id in (select id from
 delete from public.organizations where id in (select id from doomed_orgs);
 delete from public.profiles where id in (select id from doomed_users);
 delete from auth.refresh_tokens where user_id in (select id::text from doomed_users);
+delete from auth.mfa_amr_claims
+  where session_id in (select id from auth.sessions where user_id in (select id from doomed_users));
 delete from auth.sessions where user_id in (select id from doomed_users);
-delete from auth.mfa_amr_claims where session_id not in (select id from auth.sessions);
 delete from auth.one_time_tokens where user_id in (select id from doomed_users);
 delete from auth.identities where user_id in (select id from doomed_users);
 delete from auth.users where id in (select id from doomed_users);
