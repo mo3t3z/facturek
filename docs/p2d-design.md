@@ -550,3 +550,28 @@ CHECK, and each part ends green.
 - Until P2d2b adds DF023, a document whose totals do not fit `numeric(12,3)` fails at
   issue with a raw `22003` raised by the totals trigger.
 - TODO(accountant), I-14: `finalize_document()` still requires `seller_name` only.
+
+### Notes added while building P2d2b
+
+Codes introduced, with the message raised by `finalize_document(uuid, text)`:
+
+| Code | Message | Raised when |
+|---|---|---|
+| DF023 | `total exceeds the maximum` | the net à payer is above 999999999.999 |
+| DF022 | `total is zero` | `total_ttc` (HT + TVA) is 0, even with a timbre |
+| DF009 | `expected total differs from the computed total` | the text of `p_expected_net_a_payer` is not the text of the net à payer |
+
+They are checked in that order, after DF007 and before the counter is touched.
+
+- A JSON number sent as the expected total is refused too: PostgREST passes its text
+  (`10`) to the function, which is not `10.000`. Seen through REST in `test:e2e-documents`.
+- `tests.finalize_as` takes the expected total with NO default: every test states the
+  amount it expects. `006_immutability.test.sql` also calls it (three places); section G
+  named only `000`, `001` and `005`.
+- The concurrency script cannot compute the expected total as the API role (it cannot
+  execute `private.compute_totals`). Each worker reads it as postgres just before its
+  transaction. In the items race the finalizer therefore can be refused with DF009 when a
+  line is committed between its read and its call; it reads again and retries, like a
+  user would. That is the intended behaviour of the check, observed under real contention.
+- `finalizeDocument()` makes two requests: the explicit organization filter first (the RPC
+  takes no organization, and supabase-js does not type a filter on its result), then the RPC.

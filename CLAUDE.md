@@ -24,7 +24,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run test:e2e-settings` – two throwaway users through the LOCAL Auth/REST APIs:
   numerics as strings in and out, and RLS isolation of the settings (never prints keys)
 - `npm run test:e2e-documents` – two throwaway users through the LOCAL Auth/REST APIs:
-  draft insert/list/update/delete, RLS isolation, and what an issued document refuses
+  draft insert/list/update/delete, RLS isolation, what `finalize_document` refuses over
+  REST (one argument: PGRST202; wrong, null or numeric expected total: DF009), and what an
+  issued document refuses (Node `--experimental-strip-types`: it uses `computeTotals`)
 - `npm run test:e2e-items` – lines of a document through the LOCAL Auth/REST APIs: numerics
   as text both ways, RLS isolation, what an issued document refuses, and `computeTotals`
   compared with Postgres on the stored lines (Node `--experimental-strip-types`, no dependency)
@@ -104,6 +106,14 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   `tax_settings` and must be verified with an accountant / official source.
 - Document numbers are assigned only by `public.finalize_document()` in Postgres
   (gapless per org/type/year), never in the frontend. Drafts have no number.
+- `finalize_document(p_document_id, p_expected_net_a_payer text)`: the second argument is
+  REQUIRED (no default, no overload; the one-argument function was dropped). It is the net
+  à payer the user confirmed, as TEXT in the exact form Postgres prints a `numeric(12,3)`
+  (`"1190.600"`, from `toDbNumeric`). Postgres recomputes the totals and compares the two
+  TEXTS; the caller's text is never cast to a number, so `"1190.6"`, `"1e3"`, a JSON
+  number, NULL or garbage are all refused (DF009). Every refusal of the totals (DF023,
+  DF022, DF009, in that order) happens before the counter is touched: no number is
+  consumed. The frontend builds the arguments in `finalizePayload()` only.
 - Finalizing snapshots tax values plus seller and buyer identity onto the document.
   The snapshot columns, `status`, `number` and `year` are not writable by the API role.
 - `document_counters` is only touched by `finalize_document()`: RLS on, no policy, no
@@ -160,6 +170,7 @@ introduced.
 | DF006 | Issue date is earlier than the previous numbered document of the same organization, type and year | `public.finalize_document()` |
 | DF007 | Facture while `timbre_enabled` is true but `timbre_fiscal` has no amount. Second line of defence: the CHECK `tax_settings_timbre_enabled_has_amount` already makes that state impossible (`23514`) | `public.finalize_document()` |
 | DF008 | Due date is before the issue date | `public.finalize_document()` |
+| DF009 | The expected total differs from the computed total: the text sent as `p_expected_net_a_payer` is not the net à payer Postgres computed (the document or the settings changed since the screen showed it, or the value is not text with 3 decimals) | `public.finalize_document()` |
 | DF010 | A non-draft document cannot be deleted | `private.guard_documents()` (trigger on `documents`) |
 | DF011 | A non-draft document is frozen: a column other than `status` / `updated_at` was changed (the message names the columns) | `private.guard_documents()` |
 | DF012 | Status transition not allowed. Allowed: draft → sent; facture sent → paid; devis sent → cancelled | `private.guard_documents()` |
@@ -169,6 +180,8 @@ introduced.
 | DF016 | A payment can only be recorded on a facture whose status is `sent` | `private.guard_payments()` (trigger on `payments`) |
 | DF017 | Payments are append-only: no UPDATE, no DELETE, for any role | `private.guard_payments()` |
 | DF020 | Membership rule violated: the last owner cannot be removed or demoted; `organization_id` / `user_id` of a membership cannot change | `private.guard_organization_members()` (trigger on `organization_members`) |
+| DF022 | The total is zero: `total_ttc` (HT + TVA) is 0, with or without a timbre. TODO(accountant) | `public.finalize_document()` |
+| DF023 | The total exceeds the maximum: the net à payer does not fit `numeric(12,3)` | `public.finalize_document()` |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
 ### Generated files
@@ -179,11 +192,15 @@ introduced.
 ### TODO (later phases, not started)
 - P2d (design and decisions in `docs/p2d-design.md`). Done in P2d2a: the two CHECKs, the
   stored totals and their trigger, `private.compute_totals()`, timbre on factures only.
-  - P2d2b: `finalize_document(uuid, text)` with the net à payer the user confirmed, sent
-    as text; new codes DF009 (expected total mismatch), DF022 (total TTC is zero), DF023
-    (a total exceeds `numeric(12,3)`). Until then a document whose totals do not fit
-    `numeric(12,3)` fails at issue with a raw `22003`.
-  - P2d3: the issue button with its confirmation, and the read-only issued view.
+  Done in P2d2b: `finalize_document(uuid, text)`, DF009 / DF022 / DF023, and the plumbing
+  `finalizeDocument()` / `finalizePayload()` (no screen uses them yet).
+  - P2d3: the issue button with its confirmation, and the read-only issued view. The
+    button must be disabled while a line form holds unsaved input: the preview counts the
+    pending line, Postgres does not, and the user would get a DF009 they cannot understand.
+  - A document issued by hand by a privileged role (not through `finalize_document`) whose
+    totals do not fit `numeric(12,3)` still fails with a raw `22003` from the trigger.
+  - A full replay of the migrations from an empty database (`db:reset`) has not been run
+    since P2d2a; it wipes the local data and needs the developer's explicit consent.
   - TODO(accountant): `finalize_document()` requires `seller_name` only. A facture without
     the seller's matricule fiscal or address may not be legally valid. Nothing is refused
     for now; the confirmation screen of P2d3 must WARN when a seller field is missing.
@@ -266,6 +283,8 @@ introduced.
 - What the frontend writes on a document is built in `src/features/documents/payload.ts`
   only (insert: organization_id, type, client_id, issue_date, due_date, notes; update:
   the last four). A test checks the exact keys; status, number and year are never sent.
+  The arguments of `finalize_document` are built there too (`finalizePayload()`: exactly
+  two keys, the expected total as a string); `finalize.test.ts` proves it is never a number.
 - Lines of a document are saved one at a time (one row per request,
   `src/features/documents/itemsApi.ts`); every write names `organization_id` and
   `document_id`. `readItem()` (`itemSchema.ts`) is the single definition of a complete line.
