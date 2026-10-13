@@ -26,6 +26,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 ## Structure
 
 - `src/app/` router, providers, route guards
+- `src/app/AppLayout.tsx` shell of the authenticated area (navigation, sign-out)
+- `src/components/` UI shared by several features (form controls, button styles)
 - `src/features/<module>/` one folder per feature module (auth, organizations, ...)
 - `src/lib/` supabase client, env validation, shared helpers
 - `src/locales/<lang>/` translation JSON
@@ -162,6 +164,8 @@ introduced.
 - Every backend error shown to the user goes through `errorMessageKey()`
   (`src/lib/errors.ts`): an i18n key chosen from the error CODE, never the raw message.
   New DF0xx codes must be added there and in `src/locales/fr/translation.json`.
+  A screen that knows what a code means for the action it just ran passes its own key as
+  the second argument (deleting a client: `{ '23503': 'clients.errors.inUse' }`).
 - Anti-enumeration: login failures share one message; signup and forgot-password show the
   same screen whether or not the address is registered.
 - `.env` may only contain `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The app
@@ -182,6 +186,10 @@ introduced.
 - UI is French first, i18n-ready for Arabic (react-i18next). No hardcoded user-facing
   strings in components.
 - Forms: React Hook Form + Zod. Server state: TanStack Query.
+- Screens that need the organization are routed under `<RequireOrganization>` and read it
+  with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
+- Text typed by the user never goes into a PostgREST filter string (the clients search
+  runs in the browser on the loaded list).
 - No unnecessary dependencies.
 
 ### Workflow
