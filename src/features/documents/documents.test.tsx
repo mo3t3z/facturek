@@ -11,7 +11,7 @@ type Call = {
   columns?: string
   payload?: Record<string, unknown>
   filters: Record<string, unknown>
-  order?: [string, unknown]
+  order?: [string, unknown][]
   limit?: number
   ending?: 'single' | 'maybeSingle'
 }
@@ -57,7 +57,7 @@ vi.mock('../../lib/supabase', () => {
         return query
       },
       order: (column: string, options: unknown) => {
-        call.order = [column, options]
+        call.order = [...(call.order ?? []), [column, options]]
         return query
       },
       limit: (count: number) => {
@@ -160,7 +160,11 @@ describe('documents list', () => {
         op: 'select',
         columns: 'id, type, number, year, status, issue_date, due_date, buyer_name, client:clients(name)',
         filters: { organization_id: 'org-1' },
-        order: ['created_at', { ascending: false }],
+        // created_at first, then id as the tie-breaker.
+        order: [
+          ['created_at', { ascending: false }],
+          ['id', { ascending: false }],
+        ],
         limit: 1000,
       },
     ])

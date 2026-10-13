@@ -118,7 +118,7 @@ async function createUser(email, fullName) {
 const LIST = 'id,type,number,year,status,issue_date,due_date,buyer_name,client:clients(name)'
 const DETAIL = 'id,type,number,year,status,client_id,issue_date,due_date,notes,buyer_name,buyer_matricule_fiscal,buyer_address'
 const listPath = (organizationId) =>
-  `/rest/v1/documents?select=${LIST}&organization_id=eq.${organizationId}&order=created_at.desc&limit=1000`
+  `/rest/v1/documents?select=${LIST}&organization_id=eq.${organizationId}&order=created_at.desc,id.desc&limit=1000`
 const onePath = (organizationId, documentId, select = 'id') =>
   `/rest/v1/documents?select=${select}&organization_id=eq.${organizationId}&id=eq.${documentId}`
 // What supabase-js sends for .single(): "exactly one object, or it is an error".

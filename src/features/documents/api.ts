@@ -58,12 +58,18 @@ export type DocumentFilters = { type: DocumentType | null; status: DocumentStatu
 
 export const documentsKey = (organizationId: string) => ['documents', organizationId] as const
 
-/** Newest first. The filters are values of fixed lists, never free text. */
+/**
+ * Newest first; the id breaks ties so two documents created at the same instant always
+ * come in the same order. The filters are values of fixed lists, never free text.
+ */
 export async function listDocuments(organizationId: string, filters: DocumentFilters): Promise<DocumentListItem[]> {
   let query = supabase.from('documents').select(LIST_COLUMNS).eq('organization_id', organizationId)
   if (filters.type !== null) query = query.eq('type', filters.type)
   if (filters.status !== null) query = query.eq('status', filters.status)
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(DOCUMENTS_LIMIT)
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(DOCUMENTS_LIMIT)
   if (error) throw error
   return data
 }
