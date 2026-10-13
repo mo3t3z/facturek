@@ -25,6 +25,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   numerics as strings in and out, and RLS isolation of the settings (never prints keys)
 - `npm run test:e2e-documents` – two throwaway users through the LOCAL Auth/REST APIs:
   draft insert/list/update/delete, RLS isolation, and what an issued document refuses
+- `npm run test:e2e-items` – lines of a document through the LOCAL Auth/REST APIs: numerics
+  as text both ways, RLS isolation, what an issued document refuses, and `computeTotals`
+  compared with Postgres on the stored lines (Node `--experimental-strip-types`, no dependency)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 - `npm run test:coverage` – money module tests with coverage; fails below 100 % of
   statements, branches, functions and lines of `src/lib/money`
@@ -220,6 +223,13 @@ introduced.
 - What the frontend writes on a document is built in `src/features/documents/payload.ts`
   only (insert: organization_id, type, client_id, issue_date, due_date, notes; update:
   the last four). A test checks the exact keys; status, number and year are never sent.
+- Lines of a document are saved one at a time (one row per request,
+  `src/features/documents/itemsApi.ts`); every write names `organization_id` and
+  `document_id`. `readItem()` (`itemSchema.ts`) is the single definition of a complete line.
+- The totals on a draft are a PREVIEW (`preview.ts` + `TotalsPreview`): every amount comes
+  from `computeTotals()`, nothing is written, and it is labelled "Aperçu, non enregistré".
+  No `parseFloat` / `Number(` / `toFixed` / `Math.round` in `src/features/documents`.
+  Stored totals arrive with finalizing (P2d).
 - Screens that need the organization are routed under `<RequireOrganization>` and read it
   with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
 - Text typed by the user never goes into a PostgREST filter string (the clients search
