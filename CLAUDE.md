@@ -21,6 +21,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   (local database only; pgTAP cannot test this because it runs in one session)
 - `npm run test:e2e-auth` – real signup, email confirmation, login, `ensure_my_account`
   and password recovery through the LOCAL Auth/REST APIs and Mailpit (never prints keys)
+- `npm run test:e2e-settings` – two throwaway users through the LOCAL Auth/REST APIs:
+  numerics as strings in and out, and RLS isolation of the settings (never prints keys)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 - `npm run test:coverage` – money module tests with coverage; fails below 100 % of
   statements, branches, functions and lines of `src/lib/money`
@@ -64,6 +66,14 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - Money, quantities and rates are read from PostgREST as text (`total_ttc::text`) and
   parsed with `fromDbNumeric` / `fromDbQuantity` / `fromDbRate`; they are sent back with
   `toDbNumeric`. A JSON number would be a float.
+- Writing a numeric column goes through `dbNumeric()` (`src/lib/dbNumeric.ts`), the one
+  place where the generated `number` type is bridged; never `as any`, never `select('*')`.
+- Amounts and rates are typed in `<DecimalField>` (`src/components`), which shows the value
+  as it was understood once the field is left. An empty field is NULL, never zero, and no
+  tax value is ever pre-filled.
+- An UPDATE filtered out by RLS is not an error for PostgREST (0 rows). Every update ends
+  with `.select(...).single()` so that it fails with `PGRST116`, which the screen maps to a
+  French message through the second argument of `errorMessageKey()`.
 - Tax rates and amounts are NEVER hardcoded in code or migrations. They live in
   `tax_settings` and must be verified with an accountant / official source.
 - Document numbers are assigned only by `public.finalize_document()` in Postgres
