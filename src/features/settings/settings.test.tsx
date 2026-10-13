@@ -362,6 +362,46 @@ describe('the amount and rate input', () => {
     expect(rate()).toBeValid()
   })
 
+  // The reading appears when the field is left, which is also when a click on the submit
+  // button starts: without a reserved line the button moved under the pointer and the click
+  // was lost. jsdom has no layout, so this checks the STRUCTURE only, not the pixels.
+  it('keeps one reserved feedback line under the input in every state', async () => {
+    const reserved = (input: HTMLElement) => {
+      const slot = input.parentElement?.querySelector('[data-slot="feedback"]')
+      expect(slot).toBeInstanceOf(HTMLElement)
+      expect(slot).toHaveClass('min-h-5', 'text-sm')
+      return slot as HTMLElement
+    }
+    open()
+    await taxes()
+
+    // Empty and never touched: present, silent.
+    expect(reserved(timbre())).toBeEmptyDOMElement()
+    expect(reserved(timbre())).not.toHaveAttribute('role')
+    expect(reserved(timbre())).not.toHaveAttribute('aria-live')
+
+    // Focused, with text being typed: still there, still empty.
+    await user.type(timbre(), '1.000')
+    expect(timbre()).toHaveFocus()
+    expect(reserved(timbre())).toBeEmptyDOMElement()
+
+    // Left: the reading is INSIDE the reserved line, and still describes the input.
+    await user.tab()
+    expect(within(reserved(timbre())).getByRole('status')).toHaveTextContent('= 1,000 TND')
+    expect(timbre()).toHaveAccessibleDescription(/= 1,000 TND$/)
+
+    // Unreadable text: the error takes the same place.
+    await user.clear(timbre())
+    await user.type(timbre(), '1 500')
+    await user.tab()
+    expect(within(reserved(timbre())).getByRole('alert')).toHaveTextContent(/Montant invalide/)
+    expect(timbre()).toHaveAccessibleDescription(/Montant invalide/)
+
+    // The other field of the form has its own line.
+    expect(reserved(rate())).toBeEmptyDOMElement()
+    expect(reserved(rate())).not.toBe(reserved(timbre()))
+  })
+
   it('is a text input with a decimal keyboard, not a number input', async () => {
     open()
     await taxes()

@@ -79,16 +79,22 @@ export function DecimalField<Values extends FieldValues, Output = Values>({
           {hint}
         </p>
       )}
-      {shownError && (
-        <p id={feedbackId} role="alert" className="mt-1 text-sm text-red-700">
-          {t(shownError)}
-        </p>
-      )}
-      {shownReading && (
-        <p id={feedbackId} role="status" className="mt-1 text-sm font-medium text-slate-900">
-          {shownReading}
-        </p>
-      )}
+      {/* Always rendered, one line high even when empty: the reading appears when the field
+          is left, which is also when a click on the submit button starts. Without the
+          reserved line the button moved between mousedown and mouseup and the click was lost.
+          Empty, it has no role and no text, so nothing is announced. */}
+      <div data-slot="feedback" className="mt-1 min-h-5 text-sm">
+        {shownError && (
+          <p id={feedbackId} role="alert" className="text-red-700">
+            {t(shownError)}
+          </p>
+        )}
+        {shownReading && (
+          <p id={feedbackId} role="status" className="font-medium text-slate-900">
+            {shownReading}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
