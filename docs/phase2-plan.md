@@ -183,3 +183,13 @@ TODO(accountant): verify the rule before real use.
   `errorMessageKey()` (`clients.notFound`). `errors.ts` itself does not know the code, so
   any other screen that uses `.single()` falls back to the generic message. Decide whether
   it gets a generic entry in `DB_CODES` when the documents screens arrive (P2c).
+
+## Notes added after P2b
+
+- **P2d**: the amounts inside `documents.tva_breakdown` (jsonb) must be stored as TEXT with
+  exactly 3 decimals (`"19.000"`, `"160.000"`), never as JSON numbers: `fromDbNumeric` /
+  `fromDbRate` are strict and a JSON number would be a float in JavaScript.
+- **P2c2**: "quantity > 0" is a form rule. `parseQuantity` accepts 0 on purpose (it only
+  checks the format and the range); the database CHECK (`quantity > 0`) is the last word.
+- **Every merge**: run `npm run test:coverage` (100 % of `src/lib/money`) before merging a
+  checkpoint into `main`; it is not part of `npm test`.
