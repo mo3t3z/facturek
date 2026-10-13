@@ -231,6 +231,16 @@ export function formatMillimes(value: Millimes): string {
   return `${whole},${digits.slice(-3)}`
 }
 
+/**
+ * A rate as a percentage, French decimal comma, without useless zeros and without the
+ * "%" sign: 19000 -> "19", 7500 -> "7,5", 125 -> "0,125".
+ */
+export function formatRate(value: RateMilli): string {
+  const digits = String(checked(value, MAX_RATE_MILLI, 'rate')).padStart(4, '0')
+  const decimals = digits.slice(-3).replace(/0+$/, '')
+  return decimals === '' ? digits.slice(0, -3) : `${digits.slice(0, -3)},${decimals}`
+}
+
 // --- calculations -------------------------------------------------------------------------------
 
 /** quantity x unit price, rounded half-up to the millime. @throws MoneyRangeError above the maximum. */
