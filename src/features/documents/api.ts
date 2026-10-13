@@ -1,5 +1,6 @@
+import type { Millimes } from '../../lib/money/money'
 import { supabase } from '../../lib/supabase'
-import { draftInsertPayload, draftUpdatePayload } from './payload'
+import { draftInsertPayload, draftUpdatePayload, finalizePayload } from './payload'
 import type { DocumentStatus, DocumentType, DraftHeaderValues, NewDraftValues } from './schemas'
 
 // Documents (devis and factures) of the current organization: the list and the header of
@@ -119,4 +120,34 @@ export async function deleteDraft(organizationId: string, documentId: string): P
     .select('id')
     .single()
   if (error) throw error
+}
+
+export type IssuedDocument = { id: string; number: number; year: number }
+
+/**
+ * Issues a draft: Postgres gives it its number, snapshots and totals, and freezes it.
+ *
+ * `expectedNetAPayer` is the net à payer the user saw and confirmed. Postgres recomputes
+ * the totals from the stored lines and issues nothing unless it finds exactly that amount:
+ * DF009 means the document changed since the screen computed it (reload and check again).
+ * Other refusals: DF001 to DF008, DF022 (total of zero), DF023 (total too large).
+ *
+ * Only id, number and year are read from the returned row: a uuid and two integers. Its
+ * amounts are never read here, because an RPC returns numerics as JSON numbers; the
+ * issued view will select them as text.
+ *
+ * The function checks by itself that the caller belongs to the document's organization,
+ * but it takes no organization: the first request is the usual explicit filter of this
+ * file. It fails with PGRST116, BEFORE anything is issued, when the document is not in
+ * the organization the screen is showing. (The API role cannot change the organization
+ * of a document, so the answer cannot become false between the two requests.)
+ */
+export async function finalizeDocument(organizationId: string, documentId: string, expectedNetAPayer: Millimes): Promise<IssuedDocument> {
+  const found = await supabase.from('documents').select('id').eq('organization_id', organizationId).eq('id', documentId).single()
+  if (found.error) throw found.error
+
+  const { data, error } = await supabase.rpc('finalize_document', finalizePayload(documentId, expectedNetAPayer))
+  if (error) throw error
+  if (data.number === null || data.year === null) throw new Error('finalize_document returned a document without a number')
+  return { id: data.id, number: data.number, year: data.year }
 }

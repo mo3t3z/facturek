@@ -14,8 +14,8 @@ function translation(key: string): unknown {
 const dbError = (code: string, message = 'internal') => ({ code, message, details: null, hint: null })
 
 describe('errorMessageKey', () => {
-  it.each(['DF000', 'DF001', 'DF002', 'DF003', 'DF004', 'DF005', 'DF006', 'DF007', 'DF008', 'DF010', 'DF011',
-    'DF012', 'DF013', 'DF014', 'DF015', 'DF016', 'DF017', 'DF020', 'DF040'])(
+  it.each(['DF000', 'DF001', 'DF002', 'DF003', 'DF004', 'DF005', 'DF006', 'DF007', 'DF008', 'DF009', 'DF010', 'DF011',
+    'DF012', 'DF013', 'DF014', 'DF015', 'DF016', 'DF017', 'DF020', 'DF022', 'DF023', 'DF040'])(
     'maps the database code %s to its own French message',
     (code) => {
       const key = errorMessageKey(dbError(code))
@@ -23,6 +23,22 @@ describe('errorMessageKey', () => {
       expect(typeof translation(key)).toBe('string')
     },
   )
+
+  it('gives the three refusals of finalize v2 their own messages: totals changed, zero total, total too large', () => {
+    const texts = ['DF009', 'DF022', 'DF023'].map((code) => translation(errorMessageKey(dbError(code))))
+    expect(new Set(texts).size).toBe(3)
+    for (const text of texts) expect(text).not.toBe(translation(UNKNOWN_ERROR_KEY))
+    // DF009 tells the user what to do: the totals changed, reload and check again.
+    expect(texts[0]).toMatch(/totaux.*changé.*Rechargez.*vérifiez/)
+    expect(texts[1]).toMatch(/total est nul/)
+    expect(texts[2]).toMatch(/dépasse le montant maximal/)
+  })
+
+  it('never shows the database message of DF009, only its own text', () => {
+    const key = errorMessageKey(dbError('DF009', 'expected total differs from the computed total'))
+    expect(key).toBe('errors.db.DF009')
+    expect(translation(key)).not.toMatch(/expected total/)
+  })
 
   it('gives DF014 and DF016 distinct, specific messages', () => {
     expect(translation('errors.db.DF014')).not.toBe(translation('errors.db.DF016'))

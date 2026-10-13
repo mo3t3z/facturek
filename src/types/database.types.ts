@@ -213,7 +213,7 @@ isOneToOne: true
 { Args: Record<PropertyKey, never>; Returns: string
                            },
 "finalize_document":
-{ Args: { "p_document_id": string }; Returns: {
+{ Args: { "p_document_id": string,"p_expected_net_a_payer": string }; Returns: {
               "buyer_address": string | null,
 "buyer_matricule_fiscal": string | null,
 "buyer_name": string | null,

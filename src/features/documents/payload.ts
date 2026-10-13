@@ -1,4 +1,5 @@
 import { dbNumeric } from '../../lib/dbNumeric'
+import { type Millimes, toDbNumeric } from '../../lib/money/money'
 import type { ItemValues } from './itemSchema'
 import type { DraftHeaderValues, NewDraftValues } from './schemas'
 
@@ -30,6 +31,21 @@ export function draftUpdatePayload(values: DraftHeaderValues) {
     issue_date: orNull(values.issue_date),
     due_date: orNull(values.due_date),
     notes: orNull(values.notes),
+  }
+}
+
+// --- finalizing -------------------------------------------------------------------------------
+// The arguments of the RPC finalize_document(p_document_id, p_expected_net_a_payer).
+// The second one is the net à payer the user confirmed, and Postgres issues the document
+// only if it computes exactly the same amount (DF009 otherwise).
+// It is TEXT with 3 decimals ("1190.600"), built by toDbNumeric() from an integer number
+// of millimes: never a JavaScript number, which would be a float and would not even have
+// the form Postgres compares with ("1190.6" is refused).
+
+export function finalizePayload(documentId: string, expectedNetAPayer: Millimes) {
+  return {
+    p_document_id: documentId,
+    p_expected_net_a_payer: toDbNumeric(expectedNetAPayer),
   }
 }
 
