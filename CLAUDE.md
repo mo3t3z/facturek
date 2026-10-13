@@ -23,6 +23,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   and password recovery through the LOCAL Auth/REST APIs and Mailpit (never prints keys)
 - `npm run test:e2e-settings` – two throwaway users through the LOCAL Auth/REST APIs:
   numerics as strings in and out, and RLS isolation of the settings (never prints keys)
+- `npm run test:e2e-documents` – two throwaway users through the LOCAL Auth/REST APIs:
+  draft insert/list/update/delete, RLS isolation, and what an issued document refuses
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 - `npm run test:coverage` – money module tests with coverage; fails below 100 % of
   statements, branches, functions and lines of `src/lib/money`
@@ -209,6 +211,12 @@ introduced.
 - UI is French first, i18n-ready for Arabic (react-i18next). No hardcoded user-facing
   strings in components.
 - Forms: React Hook Form + Zod. Server state: TanStack Query.
+- Dates of a document are calendar days kept as plain `YYYY-MM-DD` text from the input to
+  the database and back (`src/features/documents/dates.ts`). Never `new Date(` /
+  `toISOString` there: UTC+1 would shift the day. `sourceRules.test.ts` enforces it.
+- What the frontend writes on a document is built in `src/features/documents/payload.ts`
+  only (insert: organization_id, type, client_id, issue_date, due_date, notes; update:
+  the last four). A test checks the exact keys; status, number and year are never sent.
 - Screens that need the organization are routed under `<RequireOrganization>` and read it
   with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
 - Text typed by the user never goes into a PostgREST filter string (the clients search
