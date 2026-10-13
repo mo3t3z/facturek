@@ -30,8 +30,12 @@ describe('source rules', () => {
     expect(filesContaining(/console\.(log|info|debug|warn|error)/)).toEqual([])
   })
 
-  it('never selects a numeric column of tax_settings without ::text (a JSON number is a float)', () => {
-    const numericColumns = ['default_tva_rate', 'timbre_fiscal', 'retenue_rate', 'retenue_threshold']
+  it('never selects a numeric column without ::text (a JSON number is a float)', () => {
+    const numericColumns = [
+      'default_tva_rate', 'timbre_fiscal', 'retenue_rate', 'retenue_threshold',
+      // document_items and payments
+      'quantity', 'unit_price', 'tva_rate', 'amount',
+    ]
     // Every string given to .select(...), directly or through a constant named *_COLUMNS.
     const selections = (code: string) => [
       ...[...code.matchAll(/\.select\(\s*(['"`])([\s\S]*?)\1/g)].map((match) => match[2] ?? ''),
@@ -60,6 +64,14 @@ describe('source rules', () => {
     expect(appSources.some(([path]) => path.includes('/features/documents/'))).toBe(true)
     expect(inDocuments(/new Date\(|\bDate\.(now|parse|UTC)\b/)).toEqual([])
     expect(inDocuments(/toISOString|toLocaleDateString|toJSON\(|valueAsDate|getTimezoneOffset/)).toEqual([])
+  })
+
+  it('does no number crunching in src/features/documents: amounts come from src/lib/money only', () => {
+    const inDocuments = (pattern: RegExp) => filesContaining(pattern).filter((path) => path.includes('/features/documents/'))
+    expect(inDocuments(/parseFloat|\bNumber\(|toFixed|Math\.round/)).toEqual([])
+    // The preview takes every amount from computeTotals / lineTotalHT.
+    const preview = appSources.find(([path]) => path.endsWith('features/documents/preview.ts'))?.[1] ?? ''
+    expect(preview).toMatch(/computeTotals\(/)
   })
 
   it('reads the environment in exactly one place', () => {

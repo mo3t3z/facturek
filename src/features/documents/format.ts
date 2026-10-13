@@ -22,3 +22,8 @@ export const DOCUMENT_WRITE_ERRORS = {
   PGRST116: 'documents.errors.notDraftOrMissing',
   '23503': 'documents.errors.clientMissing',
 }
+
+// A line write that matched no row (PGRST116): the line was removed elsewhere, or the
+// document was issued in the meantime and RLS no longer lets its lines be changed.
+// (An INSERT into an issued document answers DF014, which has its own message.)
+export const ITEM_WRITE_ERRORS = { PGRST116: 'documents.items.errors.notEditable' }

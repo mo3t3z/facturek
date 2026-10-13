@@ -7,6 +7,7 @@ import { clientsKey, listClients } from '../../clients/api'
 import { useOrganization } from '../../organizations/useOrganization'
 import { type DocumentDetail, documentsKey, getDocument, updateDraftHeader } from '../api'
 import { DraftForm } from '../components/DraftForm'
+import { ItemsEditor } from '../components/ItemsEditor'
 import { formatDay } from '../dates'
 import { DOCUMENT_WRITE_ERRORS, formatDocumentNumber, statusKey, typeKey } from '../format'
 import { documentIdSchema, type NewDraftValues } from '../schemas'
@@ -137,9 +138,13 @@ export function DocumentPage() {
   }
   if (!document.isSuccess || document.data === null) return <p role="status">{t('app.loading')}</p>
 
-  return document.data.status === 'draft' ? (
-    <DraftHeader organizationId={organization.id} document={document.data} />
-  ) : (
-    <IssuedSummary document={document.data} />
+  // Only a draft can be edited: its header above, its lines below. An issued document
+  // shows the same lines read-only.
+  const isDraft = document.data.status === 'draft'
+  return (
+    <>
+      {isDraft ? <DraftHeader organizationId={organization.id} document={document.data} /> : <IssuedSummary document={document.data} />}
+      <ItemsEditor organizationId={organization.id} documentId={document.data.id} documentType={document.data.type} editable={isDraft} />
+    </>
   )
 }

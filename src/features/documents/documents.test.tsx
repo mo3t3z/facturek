@@ -127,6 +127,9 @@ beforeEach(() => {
     if (special) return special
     if (call.table === 'organizations') return ok({ id: 'org-1', name: 'Atelier Amel' })
     if (call.table === 'clients') return ok(storedClients)
+    // The lines and the tax settings of the document page have their own tests (items.test.tsx).
+    if (call.table === 'document_items') return ok([])
+    if (call.table === 'tax_settings') return ok({ organization_id: 'org-1', default_tva_rate: null, timbre_enabled: false, timbre_fiscal: null })
     if (call.op === 'insert') return ok({ id: NEW })
     if (call.op === 'update' || call.op === 'delete') return ok({ id: call.filters.id })
     if ('id' in call.filters) return ok(details[String(call.filters.id)] ?? null)
