@@ -19,6 +19,7 @@
     "test:concurrency": "node scripts/test-concurrency.mjs",
     "test:e2e-auth": "node scripts/test-e2e-auth.mjs",
     "test:e2e-settings": "node scripts/test-e2e-settings.mjs",
+    "test:e2e-documents": "node scripts/test-e2e-documents.mjs",
     "money:vectors": "node scripts/generate-money-vectors.mjs"
   },
   "dependencies": {
