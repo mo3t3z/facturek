@@ -22,6 +22,8 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run test:e2e-auth` – real signup, email confirmation, login, `ensure_my_account`
   and password recovery through the LOCAL Auth/REST APIs and Mailpit (never prints keys)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
+- `npm run test:coverage` – money module tests with coverage; fails below 100 % of
+  statements, branches, functions and lines of `src/lib/money`
 - `npm run money:vectors` – regenerate the random vectors of `src/lib/money/vectors.json`
   with the LOCAL Postgres as the oracle (read-only SELECT; fixed seed, same output every
   time). It also checks the hand-written vectors against Postgres and fails if one differs.
