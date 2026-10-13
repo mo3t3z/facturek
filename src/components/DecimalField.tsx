@@ -3,11 +3,12 @@ import { type Control, type FieldPathByValue, type FieldValues, useController } 
 import { useTranslation } from 'react-i18next'
 import { type DecimalKind, understand } from './decimalText'
 
-type DecimalFieldProps<Values extends FieldValues> = {
-  control: Control<Values>
+type DecimalFieldProps<Values extends FieldValues, Output> = {
+  /** `Output` is what the form's schema produces; this field only deals with the text. */
+  control: Control<Values, unknown, Output>
   /** A field of the form whose value is the text typed by the user. */
   name: FieldPathByValue<Values, string>
-  /** 'amount': millimes, shown as "= 1 500,000 TND". 'rate': a percentage, shown as "= 19 %". */
+  /** 'amount': shown as "= 1 500,000 TND". 'rate': a percentage, "= 19 %". 'quantity': "= 1,5". */
   kind: DecimalKind
   label: string
   hint?: string
@@ -24,7 +25,14 @@ type DecimalFieldProps<Values extends FieldValues> = {
  * It is a text input on purpose (not type="number"): a number input accepts "1e3", drops
  * what it cannot read without telling, and changes the decimal separator with the browser.
  */
-export function DecimalField<Values extends FieldValues>({ control, name, kind, label, hint, errorKey }: DecimalFieldProps<Values>) {
+export function DecimalField<Values extends FieldValues, Output = Values>({
+  control,
+  name,
+  kind,
+  label,
+  hint,
+  errorKey,
+}: DecimalFieldProps<Values, Output>) {
   const { t } = useTranslation()
   const {
     field: { value, onChange, onBlur, ref, name: fieldName },

@@ -31,7 +31,8 @@
     "tooLong": "Ce texte est trop long.",
     "emailInvalid": "Adresse e-mail invalide.",
     "amountInvalid": "Montant invalide. Exemples : 12 ou 12,500 (3 décimales au plus, sans espace ni séparateur de milliers).",
-    "rateInvalid": "Taux invalide. Saisissez un pourcentage entre 0 et 100, par exemple 19 ou 7,5."
+    "rateInvalid": "Taux invalide. Saisissez un pourcentage entre 0 et 100, par exemple 19 ou 7,5.",
+    "quantityInvalid": "Quantité invalide. Exemples : 2 ou 1,5 (3 décimales au plus, sans espace)."
   },
   "clients": {
     "title": "Clients",
@@ -182,7 +183,10 @@
   },
   "money": {
     "understoodAmount": "= {{value}} TND",
-    "understoodRate": "= {{value}} %"
+    "understoodRate": "= {{value}} %",
+    "understoodQuantity": "= {{value}}",
+    "amount": "{{value}} TND",
+    "rate": "{{value}} %"
   },
   "settings": {
     "title": "Paramètres",
@@ -325,6 +329,69 @@
     "errors": {
       "notDraftOrMissing": "Rien n'a été modifié : ce document n'est plus un brouillon, ou il n'existe plus.",
       "clientMissing": "Ce client n'existe plus. Choisissez-en un autre."
+    },
+    "items": {
+      "title": "Lignes",
+      "empty": "Aucune ligne pour le moment. Un document a besoin d'au moins une ligne pour être émis.",
+      "emptyIssued": "Ce document ne contient aucune ligne.",
+      "count_one": "{{count}} ligne",
+      "count_other": "{{count}} lignes",
+      "truncated": "Seules les {{count}} premières lignes sont chargées : la liste et l'aperçu sont incomplets.",
+      "loadError": "Les lignes n'ont pas pu être chargées.",
+      "quantity": "Quantité",
+      "unitPrice": "Prix unitaire HT",
+      "tvaRate": "TVA",
+      "lineTotal": "Total HT",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "lineNamed": "{{action}} la ligne {{position}} : {{description}}",
+      "deleteQuestion": "Supprimer la ligne {{position}} ({{description}}) ?",
+      "deleteConfirm": "Confirmer la suppression",
+      "deleting": "Suppression…",
+      "cancel": "Annuler",
+      "addTitle": "Ajouter une ligne",
+      "editTitle": "Modifier la ligne {{position}}",
+      "fields": {
+        "description": "Désignation",
+        "quantity": "Quantité",
+        "unitPrice": "Prix unitaire HT (TND)",
+        "tvaRate": "Taux de TVA (%)",
+        "tvaRateHint": "Saisissez 0 si la ligne ne porte pas de TVA.",
+        "tvaRateNoDefault": "Aucun taux par défaut n'est défini dans les paramètres : saisissez le taux de cette ligne (0 si elle ne porte pas de TVA)."
+      },
+      "add": "Ajouter la ligne",
+      "adding": "Ajout…",
+      "save": "Enregistrer la ligne",
+      "saving": "Enregistrement…",
+      "validation": {
+        "descriptionRequired": "Indiquez la désignation de la ligne.",
+        "quantityRequired": "Indiquez la quantité.",
+        "quantityPositive": "La quantité doit être supérieure à zéro.",
+        "unitPriceRequired": "Indiquez le prix unitaire (0 si la ligne est gratuite).",
+        "tvaRateRequired": "Indiquez le taux de TVA de cette ligne (0 si elle ne porte pas de TVA)."
+      },
+      "errors": {
+        "notEditable": "Rien n'a été modifié : cette ligne n'existe plus, ou le document n'est plus un brouillon."
+      }
+    },
+    "preview": {
+      "title": "Totaux",
+      "unsaved": "Aperçu, non enregistré",
+      "explanation": "Ces montants sont calculés à l'écran à partir des lignes ci-dessus. Les totaux officiels seront calculés et enregistrés à l'émission du document.",
+      "accountant": "Règle d'arrondi, timbre fiscal et retenue à la source : à faire vérifier par votre comptable. La retenue à la source n'est pas prise en compte.",
+      "pendingIncluded": "La ligne en cours de saisie est comptée dans l'aperçu, mais elle n'est pas encore enregistrée.",
+      "pendingIgnored": "La ligne en cours de saisie est incomplète ou invalide : elle n'est pas comptée dans l'aperçu.",
+      "overflow": "Les montants dépassent la valeur maximale possible : l'aperçu ne peut pas être calculé.",
+      "byRate": "TVA par taux",
+      "rate": "Taux",
+      "base": "Base HT",
+      "tva": "TVA",
+      "totalHT": "Total HT",
+      "totalTVA": "Total TVA",
+      "timbre": "Timbre fiscal",
+      "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres : il n'est pas compté ici, et la facture ne pourra pas être émise.",
+      "totalTTC": "Total TTC",
+      "settingsError": "Les paramètres de taxes n'ont pas pu être chargés : l'aperçu et le taux par défaut ne sont pas disponibles."
     }
   }
 }

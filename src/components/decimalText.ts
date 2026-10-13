@@ -1,6 +1,6 @@
-import { formatMillimes, formatRate, parseMillimes, parseRate } from '../lib/money/money'
+import { formatMillimes, formatQuantity, formatRate, parseMillimes, parseQuantity, parseRate } from '../lib/money/money'
 
-export type DecimalKind = 'amount' | 'rate'
+export type DecimalKind = 'amount' | 'rate' | 'quantity'
 
 export type Understood =
   | { state: 'empty' }
@@ -19,6 +19,12 @@ export function understand(kind: DecimalKind, text: string): Understood {
     return amount === null
       ? { state: 'invalid', errorKey: 'validation.amountInvalid' }
       : { state: 'valid', key: 'money.understoodAmount', value: formatMillimes(amount) }
+  }
+  if (kind === 'quantity') {
+    const quantity = parseQuantity(text)
+    return quantity === null
+      ? { state: 'invalid', errorKey: 'validation.quantityInvalid' }
+      : { state: 'valid', key: 'money.understoodQuantity', value: formatQuantity(quantity) }
   }
   const rate = parseRate(text)
   return rate === null
