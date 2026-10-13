@@ -8,6 +8,7 @@ import { SignupPage } from '../features/auth/pages/SignupPage'
 import { ClientCreatePage } from '../features/clients/pages/ClientCreatePage'
 import { ClientEditPage } from '../features/clients/pages/ClientEditPage'
 import { ClientsListPage } from '../features/clients/pages/ClientsListPage'
+import { SettingsPage } from '../features/settings/pages/SettingsPage'
 import { RequireOrganization } from '../features/organizations/RequireOrganization'
 import { AppHomePage } from './AppHomePage'
 import { AppLayout } from './AppLayout'
@@ -40,6 +41,7 @@ export const routes: RouteObject[] = [
               { path: '/app/clients', element: <ClientsListPage /> },
               { path: '/app/clients/new', element: <ClientCreatePage /> },
               { path: '/app/clients/:clientId/edit', element: <ClientEditPage /> },
+              { path: '/app/settings', element: <SettingsPage /> },
             ],
           },
         ],

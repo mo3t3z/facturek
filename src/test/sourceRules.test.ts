@@ -30,6 +30,29 @@ describe('source rules', () => {
     expect(filesContaining(/console\.(log|info|debug|warn|error)/)).toEqual([])
   })
 
+  it('never selects a numeric column of tax_settings without ::text (a JSON number is a float)', () => {
+    const numericColumns = ['default_tva_rate', 'timbre_fiscal', 'retenue_rate', 'retenue_threshold']
+    // Every string given to .select(...), directly or through a constant named *_COLUMNS.
+    const selections = (code: string) => [
+      ...[...code.matchAll(/\.select\(\s*(['"`])([\s\S]*?)\1/g)].map((match) => match[2] ?? ''),
+      ...[...code.matchAll(/\b[A-Z_]*COLUMNS\s*=\s*(['"`])([\s\S]*?)\1/g)].map((match) => match[2] ?? ''),
+    ]
+    const offenders = appSources.flatMap(([path, code]) =>
+      selections(code).flatMap((selection) =>
+        numericColumns
+          .filter((column) => new RegExp(`\\b${column}\\b(?!::text)`).test(selection))
+          .map((column) => `${path}: ${column} in "${selection}"`),
+      ),
+    )
+    expect(offenders).toEqual([])
+    // The rule really looks at the settings query.
+    const settingsApi = appSources.find(([path]) => path.endsWith('features/settings/api.ts'))?.[1] ?? ''
+    expect(selections(settingsApi).some((selection) => selection.includes('default_tva_rate::text'))).toBe(true)
+    // select('*') would return every numeric column as a float.
+    expect(filesContaining(/\.select\(\s*(['"`])\s*\*/)).toEqual([])
+    expect(filesContaining(/\.select\(\s*\)/)).toEqual([])
+  })
+
   it('reads the environment in exactly one place', () => {
     expect(filesContaining(/import\.meta\.env/)).toEqual(['../lib/supabase.ts'])
   })

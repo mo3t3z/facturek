@@ -42,6 +42,11 @@ export function AppLayout() {
                   {t('nav.clients')}
                 </NavLink>
               </li>
+              <li>
+                <NavLink to="/app/settings" className={navLink}>
+                  {t('nav.settings')}
+                </NavLink>
+              </li>
             </ul>
           </nav>
         </div>
