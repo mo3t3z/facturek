@@ -54,13 +54,20 @@ export function isNetworkError(error: unknown): boolean {
 /**
  * Maps any error coming back from Supabase (Auth, PostgREST, RPC) to an i18n key.
  * Works on the `code` field only; the message is never read for display.
+ *
+ * `specific` lets a screen give a more precise message for a code whose meaning it knows
+ * from what it just did. Example: deleting a client can only raise 23503 because a
+ * document still points at it, so that screen passes { '23503': 'clients.errors.inUse' }.
+ * It is still a code -> key lookup: the backend text never reaches the user.
  */
-export function errorMessageKey(error: unknown): string {
+export function errorMessageKey(error: unknown, specific: Readonly<Record<string, string>> = {}): string {
   if (isNetworkError(error)) return NETWORK_ERROR_KEY
   if (typeof error !== 'object' || error === null) return UNKNOWN_ERROR_KEY
 
   const code = readString(error, 'code')
   if (code === null) return UNKNOWN_ERROR_KEY
+  const specificKey = Object.hasOwn(specific, code) ? specific[code] : undefined
+  if (specificKey !== undefined) return specificKey
   if (LOGIN_FAILURE_CODES.has(code)) return LOGIN_FAILED_KEY
   if (AUTH_CODES.has(code)) return `errors.auth.${code}`
   if (DB_CODES.has(code)) return `errors.db.${code}`

@@ -80,6 +80,34 @@ describe('errorMessageKey', () => {
     }
   })
 
+  describe('specific keys given by a screen', () => {
+    const specific = { '23503': 'clients.errors.inUse' }
+
+    it('uses the screen key for that code, and it has its own French text', () => {
+      const key = errorMessageKey(dbError('23503'), specific)
+      expect(key).toBe('clients.errors.inUse')
+      expect(typeof translation(key)).toBe('string')
+      expect(translation(key)).not.toBe(translation('errors.db.23503'))
+      expect(translation(key)).not.toBe(translation(UNKNOWN_ERROR_KEY))
+    })
+
+    it('keeps the generic 23503 message for a screen that gives nothing', () => {
+      expect(errorMessageKey(dbError('23503'))).toBe('errors.db.23503')
+    })
+
+    it('leaves every other code alone', () => {
+      expect(errorMessageKey(dbError('42501'), specific)).toBe('errors.db.42501')
+      expect(errorMessageKey(dbError('XX000'), specific)).toBe(UNKNOWN_ERROR_KEY)
+      expect(errorMessageKey(new TypeError('Failed to fetch'), specific)).toBe(NETWORK_ERROR_KEY)
+      expect(errorMessageKey({ message: 'no code' }, specific)).toBe(UNKNOWN_ERROR_KEY)
+    })
+
+    it('is not fooled by a code named like an Object.prototype member', () => {
+      expect(errorMessageKey(dbError('toString'), specific)).toBe(UNKNOWN_ERROR_KEY)
+      expect(errorMessageKey(dbError('constructor'), specific)).toBe(UNKNOWN_ERROR_KEY)
+    })
+  })
+
   it('has a French text for the generic, network and login keys', () => {
     for (const key of [UNKNOWN_ERROR_KEY, NETWORK_ERROR_KEY, LOGIN_FAILED_KEY]) {
       expect(typeof translation(key)).toBe('string')

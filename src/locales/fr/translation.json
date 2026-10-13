@@ -1,7 +1,13 @@
 {
   "app": {
     "name": "Devis & Factures",
-    "loading": "Chargement…"
+    "loading": "Chargement…",
+    "skipToContent": "Aller au contenu"
+  },
+  "nav": {
+    "label": "Navigation principale",
+    "home": "Tableau de bord",
+    "clients": "Clients"
   },
   "home": {
     "title": "Tableau de bord",
@@ -17,6 +23,54 @@
     "owner": "Propriétaire",
     "admin": "Administrateur",
     "member": "Membre"
+  },
+  "validation": {
+    "required": "Ce champ est obligatoire.",
+    "tooLong": "Ce texte est trop long.",
+    "emailInvalid": "Adresse e-mail invalide."
+  },
+  "clients": {
+    "title": "Clients",
+    "new": "Nouveau client",
+    "search": "Rechercher un client",
+    "searchHint": "Nom, matricule fiscal, e-mail ou téléphone.",
+    "count_one": "{{count}} client",
+    "count_other": "{{count}} clients",
+    "empty": "Aucun client pour le moment. Ajoutez votre premier client.",
+    "noMatch": "Aucun client ne correspond à cette recherche.",
+    "loadError": "La liste des clients n'a pas pu être chargée.",
+    "edit": "Modifier",
+    "editNamed": "Modifier {{name}}",
+    "delete": "Supprimer",
+    "deleteNamed": "Supprimer {{name}}",
+    "deleteQuestion": "Supprimer définitivement {{name}} ?",
+    "deleteConfirm": "Confirmer la suppression",
+    "deleting": "Suppression…",
+    "cancel": "Annuler",
+    "backToList": "Retour aux clients",
+    "notFound": "Ce client est introuvable. Il a peut-être été supprimé.",
+    "fields": {
+      "name": "Nom ou raison sociale",
+      "matricule": "Matricule fiscal",
+      "matriculeHint": "Facultatif. Recopiez-le tel qu'il figure sur les documents du client.",
+      "address": "Adresse",
+      "email": "Adresse e-mail",
+      "phone": "Téléphone",
+      "optional": "Facultatif."
+    },
+    "create": {
+      "title": "Nouveau client",
+      "submit": "Enregistrer le client",
+      "submitting": "Enregistrement…"
+    },
+    "update": {
+      "title": "Modifier le client",
+      "submit": "Enregistrer les modifications",
+      "submitting": "Enregistrement…"
+    },
+    "errors": {
+      "inUse": "Ce client est utilisé par au moins un devis ou une facture : il ne peut pas être supprimé."
+    }
   },
   "auth": {
     "logout": "Se déconnecter",
