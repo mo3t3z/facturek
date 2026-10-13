@@ -256,12 +256,12 @@ select is_empty(
   'no API role can execute handle_new_user or provision_account directly'
 );
 select ok(
-  not has_function_privilege('anon', 'public.finalize_document(uuid)', 'EXECUTE')
-  and not has_function_privilege('service_role', 'public.finalize_document(uuid)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.finalize_document(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.finalize_document(uuid, text)', 'EXECUTE'),
   'neither anon nor service_role can execute finalize_document'
 );
 select is(
-  (select p.prosecdef from pg_proc p where p.oid = 'public.finalize_document(uuid)'::regprocedure),
+  (select p.prosecdef from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure),
   true, 'finalize_document is SECURITY DEFINER'
 );
 
@@ -318,7 +318,7 @@ select throws_ok(
   '42501', null, 'anon cannot update tax_settings'
 );
 select throws_ok(
-  $$ select public.finalize_document(tests.id('doc_a')) $$,
+  $$ select public.finalize_document(tests.id('doc_a'), '100.000') $$,
   '42501', null, 'anon cannot call finalize_document'
 );
 select throws_ok('select public.ensure_my_account()', '42501', null, 'anon cannot call ensure_my_account');

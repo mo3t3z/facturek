@@ -190,8 +190,13 @@ as $$
 $$;
 
 -- Calls finalize_document() as the given user and returns the number it assigned.
+-- p_expected_net_a_payer is the net à payer the user is supposed to have seen, as text
+-- with 3 decimals ("100.000"). It has NO default on purpose: every test states the amount
+-- it expects, the helper never computes it.
 -- Leaves no impersonation behind. Use it only where success is expected.
-create or replace function tests.finalize_as(p_email text, p_document_id uuid)
+-- (This file is not rolled back: the two-argument helper of earlier versions is removed.)
+drop function if exists tests.finalize_as(text, uuid);
+create or replace function tests.finalize_as(p_email text, p_document_id uuid, p_expected_net_a_payer text)
 returns integer
 language plpgsql
 as $$
@@ -199,7 +204,7 @@ declare
   v_number integer;
 begin
   perform tests.authenticate_as(p_email);
-  select d.number into v_number from public.finalize_document(p_document_id) d;
+  select d.number into v_number from public.finalize_document(p_document_id, p_expected_net_a_payer) d;
   perform tests.clear_auth();
   return v_number;
 end;

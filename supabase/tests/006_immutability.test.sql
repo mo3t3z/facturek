@@ -16,7 +16,7 @@ language plpgsql
 as $$
 begin
   perform tests.create_draft(p_key, tests.id('org_a'), tests.id('client_a'), p_type);
-  perform tests.finalize_as('alice@test.local', tests.id(p_key));
+  perform tests.finalize_as('alice@test.local', tests.id(p_key), '100.000');
 end;
 $$;
 
@@ -76,7 +76,7 @@ select tests.create_draft('g_no_client', tests.id('org_a'), null);
 -- Another organization.
 select tests.create_draft('b_draft', tests.id('org_b'), tests.id('client_b'));
 select tests.create_draft('b_sent', tests.id('org_b'), tests.id('client_b'));
-select tests.finalize_as('bob@test.local', tests.id('b_sent'));
+select tests.finalize_as('bob@test.local', tests.id('b_sent'), '100.000');
 
 create temp table frozen_before as
 select to_jsonb(d) - 'updated_at' as doc from public.documents d where d.id = tests.id('fac_frozen');
@@ -437,7 +437,7 @@ select throws_ok(
 -- must not block the facture that was validly converted from it.
 update public.documents set converted_from = tests.id('dev_src_later') where id = tests.id('conv_life');
 select lives_ok($$ update public.documents set status = 'cancelled' where id = tests.id('dev_src_later') $$, 'the source devis can be cancelled after a facture was converted from it');
-select lives_ok($$ select tests.finalize_as('alice@test.local', tests.id('conv_life')) $$, 'the converted facture can still be finalized');
+select lives_ok($$ select tests.finalize_as('alice@test.local', tests.id('conv_life'), '100.000') $$, 'the converted facture can still be finalized');
 select lives_ok($$ update public.documents set status = 'paid' where id = tests.id('conv_life') $$, 'and can still be marked paid');
 select results_eq(
   $$ select status::text, converted_from from public.documents where id = tests.id('conv_life') $$,

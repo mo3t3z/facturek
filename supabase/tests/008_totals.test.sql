@@ -167,7 +167,7 @@ order by v.n;
 -- C. STRUCTURE
 -- =========================================================================================
 select is(
-  (select p.prosrc ~ 'round\s*\(' from pg_proc p where p.oid = 'public.finalize_document(uuid)'::regprocedure),
+  (select p.prosrc ~ 'round\s*\(' from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure),
   false, 'finalize_document contains no rounding of its own');
 select is(
   (select p.prosrc ~ 'round\s*\(' from pg_proc p where p.oid = 'private.set_document_totals()'::regprocedure),
@@ -221,17 +221,33 @@ select is(
   array['guard_document_conversion', 'set_document_totals'],
   'BEFORE INSERT triggers of documents, in firing order');
 
--- finalize_document keeps its signature and its grants (the body was replaced in place).
+select is(
+  (select p.prosrc ~ 'private\.compute_totals\(' from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure),
+  true, 'finalize_document takes its totals from private.compute_totals');
+
+-- finalize_document v2: ONE function, with the expected total; the unchecked one is gone.
+select is(to_regprocedure('public.finalize_document(uuid)'), null, 'finalize_document(uuid) no longer exists');
+select isnt(to_regprocedure('public.finalize_document(uuid, text)'), null, 'finalize_document(uuid, text) exists');
 select is(
   (select array_agg(p.oid::regprocedure::text) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'finalize_document'),
-  array['finalize_document(uuid)'], 'there is exactly one finalize_document, with the signature (uuid)');
+  array['finalize_document(uuid,text)'], 'there is exactly one finalize_document: no overload, no default');
 select is(
-  has_function_privilege('authenticated', 'public.finalize_document(uuid)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.finalize_document(uuid)', 'EXECUTE')
-  and not has_function_privilege('service_role', 'public.finalize_document(uuid)', 'EXECUTE')
-  and not has_function_privilege('public', 'public.finalize_document(uuid)', 'EXECUTE'),
-  true, 'finalize_document is still executable by authenticated only');
+  (select p.pronargdefaults::int from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure),
+  0, 'the expected total has no default value: it cannot be left out');
+select is(
+  (select p.proacl::text from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure),
+  '{postgres=X/postgres,authenticated=X/postgres}', 'its ACL is exactly the owner and authenticated');
+select is(
+  has_function_privilege('authenticated', 'public.finalize_document(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.finalize_document(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.finalize_document(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('public', 'public.finalize_document(uuid, text)', 'EXECUTE'),
+  true, 'finalize_document is executable by authenticated only');
+select results_eq(
+  $$ select p.prosecdef, p.proconfig::text = '{"search_path=\"\""}' from pg_proc p where p.oid = 'public.finalize_document(uuid, text)'::regprocedure $$,
+  $$ values (true, true) $$,
+  'finalize_document is SECURITY DEFINER with an empty search_path');
 
 -- The API role reads the totals and can write none of them.
 select is(
@@ -456,7 +472,7 @@ select pg_temp.draft('f_devis', 'devis');
 select pg_temp.draft('f_facture');
 
 select lives_ok(
-  $$ select tests.finalize_as('alice@test.local', tests.id('f_devis')) $$,
+  $$ select tests.finalize_as('alice@test.local', tests.id('f_devis'), '123.800') $$,
   'a devis of an organization that applies the timbre is finalized');
 select results_eq(
   $$ select status::text, timbre_fiscal, total_ht, total_tva, total_ttc, net_a_payer
@@ -465,7 +481,7 @@ select results_eq(
   'the devis carries NO timbre, and its net à payer is its total TTC');
 
 select lives_ok(
-  $$ select tests.finalize_as('alice@test.local', tests.id('f_facture')) $$,
+  $$ select tests.finalize_as('alice@test.local', tests.id('f_facture'), '133.799') $$,
   'a facture of the same organization is finalized');
 select results_eq(
   $$ select status::text, timbre_fiscal, total_ht, total_tva, total_ttc, net_a_payer
@@ -490,7 +506,7 @@ select is(
 delete from public.tax_settings where organization_id = tests.id('org_b');
 select tests.create_draft('f_no_settings', tests.id('org_b'), tests.id('client_b'));
 select lives_ok(
-  $$ select tests.finalize_as('bob@test.local', tests.id('f_no_settings')) $$,
+  $$ select tests.finalize_as('bob@test.local', tests.id('f_no_settings'), '100.000') $$,
   'a facture of an organization without a tax_settings row is finalized');
 select results_eq(
   $$ select timbre_fiscal, total_ttc, net_a_payer from public.documents where id = tests.id('f_no_settings') $$,
