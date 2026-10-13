@@ -220,5 +220,9 @@ introduced.
 - After changes run lint, typecheck and tests and report the REAL output. Never claim
   something passed if it did not run, and never claim manual testing without evidence.
 - Git: small local commits on one branch per step. Never push.
+- Never merge into `main` unless `npm run test`, `npm run lint` and `npm run typecheck`
+  (and `npm run test:coverage` when `src/lib/money` changed) pass on the TIP of the branch
+  being merged. Run them right before the merge, and stop if one fails: `main` must never
+  be red, even for one commit. Merges are `--ff-only`.
 - Build only the current phase. Do not start the next phase without approval.
 - The developer is a junior: explain key decisions briefly (why, trade-offs).
