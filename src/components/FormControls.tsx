@@ -42,6 +42,26 @@ export function TextField({ label, hint, errorKey, ...inputProps }: TextFieldPro
   )
 }
 
+type CheckboxFieldProps = Omit<ComponentProps<'input'>, 'type'> & { label: string }
+
+/** A checkbox with its label on the same line; the whole line is the touch target. */
+export function CheckboxField({ label, ...inputProps }: CheckboxFieldProps) {
+  const id = useId()
+  return (
+    <div className="mb-4 flex items-start gap-3">
+      <input
+        id={id}
+        type="checkbox"
+        className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+        {...inputProps}
+      />
+      <label htmlFor={id} className="text-base text-slate-900">
+        {label}
+      </label>
+    </div>
+  )
+}
+
 export function SubmitButton({ label, pendingLabel, pending }: { label: string; pendingLabel: string; pending: boolean }) {
   return (
     <button

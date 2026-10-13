@@ -7,7 +7,8 @@
   "nav": {
     "label": "Navigation principale",
     "home": "Tableau de bord",
-    "clients": "Clients"
+    "clients": "Clients",
+    "settings": "Paramètres"
   },
   "home": {
     "title": "Tableau de bord",
@@ -27,7 +28,9 @@
   "validation": {
     "required": "Ce champ est obligatoire.",
     "tooLong": "Ce texte est trop long.",
-    "emailInvalid": "Adresse e-mail invalide."
+    "emailInvalid": "Adresse e-mail invalide.",
+    "amountInvalid": "Montant invalide. Exemples : 12 ou 12,500 (3 décimales au plus, sans espace ni séparateur de milliers).",
+    "rateInvalid": "Taux invalide. Saisissez un pourcentage entre 0 et 100, par exemple 19 ou 7,5."
   },
   "clients": {
     "title": "Clients",
@@ -174,6 +177,42 @@
       "23505": "Cet élément existe déjà.",
       "23514": "Certaines valeurs saisies ne sont pas valides.",
       "PGRST301": "Votre session a expiré. Reconnectez-vous."
+    }
+  },
+  "money": {
+    "understoodAmount": "= {{value}} TND",
+    "understoodRate": "= {{value}} %"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "saved": "Modifications enregistrées.",
+    "loadError": "Les paramètres n'ont pas pu être chargés.",
+    "organization": {
+      "title": "Votre entreprise",
+      "intro": "Ces informations figureront sur vos devis et factures.",
+      "name": "Nom ou raison sociale",
+      "matricule": "Matricule fiscal",
+      "address": "Adresse",
+      "email": "Adresse e-mail",
+      "phone": "Téléphone",
+      "optional": "Facultatif.",
+      "submit": "Enregistrer l'entreprise",
+      "submitting": "Enregistrement…"
+    },
+    "tax": {
+      "title": "Taxes",
+      "notice": "L'application ne propose aucune valeur : le taux de TVA et le montant du timbre fiscal que vous saisissez ici doivent être vérifiés auprès de votre comptable ou d'une source officielle avant d'émettre un document.",
+      "defaultRate": "Taux de TVA par défaut (%)",
+      "defaultRateHint": "Facultatif. Il sera proposé sur chaque nouvelle ligne ; laissez vide pour le saisir à chaque fois.",
+      "timbreEnabled": "Appliquer le timbre fiscal sur les factures",
+      "timbreAmount": "Montant du timbre fiscal (TND)",
+      "timbreAmountHint": "Obligatoire si le timbre est appliqué.",
+      "timbreRequired": "Indiquez le montant du timbre fiscal, ou décochez la case.",
+      "submit": "Enregistrer les taxes",
+      "submitting": "Enregistrement…"
+    },
+    "errors": {
+      "notSaved": "Rien n'a été enregistré : vous n'avez pas les droits nécessaires pour modifier ces paramètres, ou ils n'existent plus."
     }
   }
 }
