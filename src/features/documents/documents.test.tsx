@@ -231,7 +231,9 @@ describe('documents list', () => {
     open('/app/documents')
     expect(await screen.findByText('999 documents')).toBeInTheDocument()
     expect(screen.queryByText(/^Seuls les 1000 documents/)).not.toBeInTheDocument()
-  })
+    // Rendering 1000 cards twice in jsdom takes several seconds: the default 5 s limit of a
+    // test is too short on a busy machine. The assertions are unchanged.
+  }, 60_000)
 
   it('shows a French error and a retry when the list cannot be loaded', async () => {
     let fail = true

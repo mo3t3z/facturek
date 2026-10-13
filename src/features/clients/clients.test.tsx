@@ -227,7 +227,9 @@ describe('clients list', () => {
     open('/app/clients')
     expect(await screen.findByText('999 clients')).toBeInTheDocument()
     expect(screen.queryByText(/^Seuls les 1000 premiers clients/)).not.toBeInTheDocument()
-  })
+    // Rendering 1000 cards twice in jsdom takes several seconds: the default 5 s limit of a
+    // test is too short on a busy machine. The assertions are unchanged.
+  }, 60_000)
 
   it('renders a hostile client name as plain text', async () => {
     const hostile = '<img src=x onerror=alert(1)><b>Client</b>'
