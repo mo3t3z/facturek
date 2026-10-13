@@ -45,6 +45,7 @@ select bag_eq(
        and c.relname in ('documents', 'document_items', 'payments') $$,
   $$ values ('documents', 'guard_documents'),
             ('documents', 'guard_document_conversion'),
+            ('documents', 'set_document_totals'),
             ('documents', 'set_updated_at'),
             ('document_items', 'guard_document_items'),
             ('document_items', 'set_updated_at'),

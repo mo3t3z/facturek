@@ -104,7 +104,10 @@ select lives_ok(
   $$ insert into public.clients (organization_id, name) values (tests.id('org_amel'), 'Client of Amel') $$,
   'a new owner can create a client');
 select isnt_empty(
-  $$ update public.tax_settings set timbre_enabled = true where organization_id = tests.id('org_amel') returning 1 $$,
+  -- Arbitrary TEST amount. The switch alone would be refused: a new organization has no
+  -- amount, and CHECK tax_settings_timbre_enabled_has_amount requires one.
+  $$ update public.tax_settings set timbre_enabled = true, timbre_fiscal = 9.999
+     where organization_id = tests.id('org_amel') returning 1 $$,
   'a new owner can edit their tax settings');
 select isnt_empty(
   $$ update public.organizations set name = 'Atelier Amel' where id = tests.id('org_amel') returning 1 $$,

@@ -140,6 +140,16 @@ select results_eq(
 update public.tax_settings set timbre_enabled = false, timbre_fiscal = null where organization_id = tests.id('org_a');
 select is(tests.finalize_as('alice@test.local', tests.id('t_off_null')), 4, 'timbre disabled and no amount: a facture is accepted');
 
+-- "Enabled without an amount" is now refused at the source, for every role.
+select throws_ok(
+  $$ update public.tax_settings set timbre_enabled = true where organization_id = tests.id('org_a') $$,
+  '23514', 'new row for relation "tax_settings" violates check constraint "tax_settings_timbre_enabled_has_amount"',
+  'CHECK: the timbre cannot be enabled without an amount');
+
+-- DF007 is the second line of defence behind that CHECK. It can only be reached if the
+-- CHECK is gone, so the constraint is dropped here and put back below, once the amount is
+-- set. This file runs in one transaction that is rolled back: nothing of it remains.
+alter table public.tax_settings drop constraint tax_settings_timbre_enabled_has_amount;
 update public.tax_settings set timbre_enabled = true where organization_id = tests.id('org_a');
 select tests.authenticate_as('alice@test.local');
 select throws_ok(
@@ -150,6 +160,8 @@ select tests.clear_auth();
 select is(tests.finalize_as('alice@test.local', tests.id('dv_on_null')), 2, 'timbre enabled without an amount does not block a devis');
 
 update public.tax_settings set timbre_fiscal = 9.999 where organization_id = tests.id('org_a');
+alter table public.tax_settings
+  add constraint tax_settings_timbre_enabled_has_amount check (not timbre_enabled or timbre_fiscal is not null);
 select is(tests.finalize_as('alice@test.local', tests.id('t_on_amount')), 5, 'timbre enabled with an amount: accepted, and the rejected attempt consumed no number');
 select is((select timbre_fiscal from public.documents where id = tests.id('t_on_amount')), 9.999::numeric, 'the timbre amount is snapshotted when enabled');
 select is((select timbre_fiscal from public.documents where id = tests.id('t_off_null')), null::numeric, 'no timbre is snapshotted when disabled');
