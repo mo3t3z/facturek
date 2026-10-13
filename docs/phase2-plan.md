@@ -193,3 +193,38 @@ TODO(accountant): verify the rule before real use.
   checks the format and the range); the database CHECK (`quantity > 0`) is the last word.
 - **Every merge**: run `npm run test:coverage` (100 % of `src/lib/money`) before merging a
   checkpoint into `main`; it is not part of `npm test`.
+
+## TODOs recorded after P2c3 (2026-10-13)
+
+### P2d
+- **Timbre without an amount.** Add a CHECK on `tax_settings` so that
+  `timbre_enabled = true` requires `timbre_fiscal is not null`. Verify the existing rows
+  first (a row that violates it would make the migration fail). `finalize_document` must
+  keep refusing a facture when the timbre is enabled without an amount (DF007 today).
+- **Length of free text.** Add a length CHECK on `document_items.description` matching the
+  screen limit (500 characters, `DESCRIPTION_MAX_LENGTH`), and review the other free-text
+  columns (`documents.notes`, client and organization fields): none has a limit in the
+  database today.
+- **No timbre on a devis.** `finalize_document` must not snapshot the timbre on a devis.
+  The preview already never adds it to a devis (decision 3).
+- **Names of the stored totals.** Decide them after the accountant answers: "total TTC"
+  without the timbre versus "net à payer" with it.
+
+### Later
+- **Avoir (credit note)** as a document type.
+- **TTN / El Fatoora.** Fields such as `ttn_reference`, `ttn_status` and the signed XML
+  would be written AFTER a document is issued: they must be columns that
+  `guard_documents` does not freeze (today it freezes every column except `status` and
+  `updated_at`). TEIF export as a separate module.
+  The external facts behind this (El Fatoora obligation from 2026, the TTN portal,
+  TunTrust certificate prices, 2-year validity) are UNVERIFIED references, pending the
+  answers of the accountant and of TTN. Nothing may be built on them yet.
+
+### Possible UX bug, to reproduce first
+- The reading shown by `DecimalField` when a field is left ("= 1 500,000 TND") adds a line
+  under the field. It may shift the layout and make the first click on the submit button
+  miss. Pending a manual reproduction: nothing is changed until it is confirmed.
+
+### Test data left in the local database
+- Account `p2c3-manual-20261013@example.test`, organization "Test Manuel P2c3", client
+  "Client Documents A". The before/after counts of future reports include them.

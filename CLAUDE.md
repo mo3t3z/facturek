@@ -156,6 +156,18 @@ introduced.
   from ESLint. (Prettier is not installed; if it is added, ignore this file there too.)
 
 ### TODO (later phases, not started)
+- P2d (details in `docs/phase2-plan.md`): CHECK on `tax_settings` (timbre enabled requires
+  an amount; verify existing rows first); length CHECK on `document_items.description`
+  (500, like the screen) and review of the other free-text columns; `finalize_document`
+  must not snapshot the timbre on a devis; names of the stored totals to decide after the
+  accountant answers (total TTC without timbre vs net à payer).
+- Later: avoir (credit note) type; TTN fields (`ttn_reference`, `ttn_status`, signed XML)
+  as columns writable after issue, excluded from what `guard_documents` freezes; TEIF
+  export as a separate module. The external facts (El Fatoora from 2026, TTN portal,
+  TunTrust certificates) are unverified, pending the accountant and TTN.
+- Possible UX bug, not reproduced yet: the `DecimalField` reading appearing on blur may
+  shift the layout and swallow the first click on the submit button. Reproduce before
+  changing anything.
 - Before the invitation flow exists, the e2e/concurrency scripts must record the
   organization ids they create and delete only those (today they find organizations
   through memberships).
