@@ -9,6 +9,8 @@ import { type Millimes, type QtyMilli, type RateMilli, toDbNumeric } from './mon
  * This function is the ONE place where that mismatch is bridged with a type cast: at
  * runtime the value is, and stays, a string (see dbNumeric.test.ts).
  */
+export function dbNumeric(value: Millimes | QtyMilli | RateMilli): number
+export function dbNumeric(value: Millimes | QtyMilli | RateMilli | null): number | null
 export function dbNumeric(value: Millimes | QtyMilli | RateMilli | null): number | null {
   if (value === null) return null
   const text: string = toDbNumeric(value)

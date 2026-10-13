@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeTotals,
   formatMillimes,
+  formatQuantity,
   formatRate,
   fromDbNumeric,
   fromDbQuantity,
@@ -343,6 +344,26 @@ describe('formatMillimes', () => {
   it('refuses a value that is not a valid amount', () => {
     expect(() => formatMillimes(0.5 as Millimes)).toThrow(MoneyRangeError)
     expect(() => formatMillimes(-1000 as Millimes)).toThrow(MoneyRangeError)
+  })
+})
+
+describe('formatQuantity', () => {
+  it.each([
+    [0, '0'],
+    [1, '0,001'],
+    [1000, '1'],
+    [1500, '1,5'],
+    [2250, '2,25'],
+    [12345678, `12${GROUP_SEPARATOR}345,678`],
+    [1234567000, `1${GROUP_SEPARATOR}234${GROUP_SEPARATOR}567`],
+    [MAX_QTY_MILLI, `999${GROUP_SEPARATOR}999${GROUP_SEPARATOR}999,999`],
+  ])('formats %d as %s', (value, text) => {
+    expect(formatQuantity(qtyMilli(value))).toBe(text)
+  })
+
+  it('refuses a value that is not a valid quantity', () => {
+    expect(() => formatQuantity(-1 as never)).toThrow(MoneyRangeError)
+    expect(() => formatQuantity(1.5 as never)).toThrow(MoneyRangeError)
   })
 })
 

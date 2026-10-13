@@ -241,6 +241,17 @@ export function formatRate(value: RateMilli): string {
   return decimals === '' ? digits.slice(0, -3) : `${digits.slice(0, -3)},${decimals}`
 }
 
+/**
+ * A quantity, French display: groups of three digits, a decimal comma, without useless
+ * zeros: 1500 -> "1,5", 2000 -> "2", 1 -> "0,001", 1234567000 -> "1 234 567".
+ */
+export function formatQuantity(value: QtyMilli): string {
+  const digits = String(checked(value, MAX_QTY_MILLI, 'quantity')).padStart(4, '0')
+  const whole = digits.slice(0, -3).replace(/\B(?=(?:[0-9]{3})+$)/g, GROUP_SEPARATOR)
+  const decimals = digits.slice(-3).replace(/0+$/, '')
+  return decimals === '' ? whole : `${whole},${decimals}`
+}
+
 // --- calculations -------------------------------------------------------------------------------
 
 /** quantity x unit price, rounded half-up to the millime. @throws MoneyRangeError above the maximum. */
