@@ -83,6 +83,9 @@ export function TotalsPreview({ totals, timbre, pending }: TotalsPreviewProps) {
             <dd className="text-end text-slate-900">{amount(totals.totalHT)}</dd>
             <dt className="text-slate-600">{t('documents.preview.totalTVA')}</dt>
             <dd className="text-end text-slate-900">{amount(totals.totalTVA)}</dd>
+            {/* HT + TVA, never the timbre. */}
+            <dt className="text-slate-600">{t('documents.preview.totalTTC')}</dt>
+            <dd className="text-end text-slate-900">{amount(totals.totalTTC)}</dd>
             {/* Only when computeTotals() was given a timbre: a facture of an organization that applies it. */}
             {totals.timbre !== null && (
               <>
@@ -90,8 +93,9 @@ export function TotalsPreview({ totals, timbre, pending }: TotalsPreviewProps) {
                 <dd className="text-end text-slate-900">{amount(totals.timbre)}</dd>
               </>
             )}
-            <dt className="border-t border-slate-300 pt-1 text-base font-semibold text-slate-900">{t('documents.preview.totalTTC')}</dt>
-            <dd className="border-t border-slate-300 pt-1 text-end text-base font-semibold text-slate-900">{amount(totals.totalTTC)}</dd>
+            {/* Total TTC + timbre: equal to the total TTC when no timbre applies. */}
+            <dt className="border-t border-slate-300 pt-1 text-base font-semibold text-slate-900">{t('documents.preview.netAPayer')}</dt>
+            <dd className="border-t border-slate-300 pt-1 text-end text-base font-semibold text-slate-900">{amount(totals.netAPayer)}</dd>
           </dl>
         </>
       )}

@@ -384,32 +384,44 @@ describe('totals preview', () => {
     expect(region).toHaveTextContent(/Les totaux officiels seront calculés et enregistrés à l'émission/)
   })
 
-  it('shows the totals by rate, HT, TVA, the timbre of a facture and the TTC', async () => {
+  it('shows the totals by rate, then HT, TVA, TTC, the timbre of a facture and the net à payer', async () => {
     open()
     const region = await preview()
     // 19 %: base 20.000, TVA 3.800. 7 %: base 5.000, TVA 0.350.
     const rows = within(region).getAllByRole('row').map((row) => row.textContent)
     expect(rows).toEqual(['TauxBase HTTVA', '7 %5,000 TND0,350 TND', '19 %20,000 TND3,800 TND'])
     expect(total(region, 'Total HT')).toHaveTextContent('25,000 TND')
-    expect(total(region, 'Total TVA')).toHaveTextContent('4,150 TND')
-    expect(total(region, 'Timbre fiscal')).toHaveTextContent('1,000 TND')
-    expect(total(region, 'Total TTC')).toHaveTextContent('30,150 TND')
+    expect(total(region, 'TVA')).toHaveTextContent('4,150 TND')
+    // Total TTC is HT + TVA and never includes the timbre; the net à payer adds it.
+    expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(total(region, 'Droit de timbre')).toHaveTextContent('1,000 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('30,150 TND')
+    // The five rows, in the order of a printed facture.
+    expect(within(region).getAllByText(/./, { selector: 'dt' }).map((dt) => dt.textContent)).toEqual([
+      'Total HT',
+      'TVA',
+      'Total TTC',
+      'Droit de timbre',
+      'Net à payer',
+    ])
   })
 
   it('never shows the timbre on a devis, even when the organization applies it', async () => {
     document = { ...document, type: 'devis' }
     open()
     const region = await preview()
-    expect(within(region).queryByText('Timbre fiscal')).not.toBeInTheDocument()
+    expect(within(region).queryByText('Droit de timbre')).not.toBeInTheDocument()
     expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('29,150 TND')
   })
 
   it('shows no timbre on a facture when the organization does not apply it', async () => {
     tax = { ...tax, timbre_enabled: false }
     open()
     const region = await preview()
-    expect(within(region).queryByText('Timbre fiscal')).not.toBeInTheDocument()
+    expect(within(region).queryByText('Droit de timbre')).not.toBeInTheDocument()
     expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('29,150 TND')
   })
 
   it('warns when the timbre is applied but has no amount, and does not count it', async () => {
@@ -417,8 +429,9 @@ describe('totals preview', () => {
     open()
     const region = await preview()
     expect(region).toHaveTextContent(/Le timbre fiscal est activé mais son montant n'est pas renseigné/)
-    expect(within(region).queryByText('Timbre fiscal')).not.toBeInTheDocument()
+    expect(within(region).queryByText('Droit de timbre')).not.toBeInTheDocument()
     expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('29,150 TND')
   })
 
   it('rounds each line before adding them, and the TVA once per rate', async () => {
@@ -434,8 +447,9 @@ describe('totals preview', () => {
     const rows = within(region).getAllByRole('row').map((row) => row.textContent)
     expect(rows).toEqual(['TauxBase HTTVA', '0 %0,003 TND0,000 TND', '19 %0,009 TND0,002 TND'])
     expect(total(region, 'Total HT')).toHaveTextContent('0,012 TND')
-    expect(total(region, 'Total TVA')).toHaveTextContent('0,002 TND')
+    expect(total(region, 'TVA')).toHaveTextContent('0,002 TND')
     expect(total(region, 'Total TTC')).toHaveTextContent('0,014 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('0,014 TND')
   })
 
   it('follows the line being typed, and says it is not saved', async () => {
@@ -445,8 +459,9 @@ describe('totals preview', () => {
     await fill(form, { description: 'En cours', quantity: '2', price: '50' })
     // 19 % (default): base 20.000 + 100.000, TVA 22.800.
     await waitFor(() => expect(total(region, 'Total HT')).toHaveTextContent('125,000 TND'))
-    expect(total(region, 'Total TVA')).toHaveTextContent('23,150 TND')
-    expect(total(region, 'Total TTC')).toHaveTextContent('149,150 TND')
+    expect(total(region, 'TVA')).toHaveTextContent('23,150 TND')
+    expect(total(region, 'Total TTC')).toHaveTextContent('148,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('149,150 TND')
     expect(region).toHaveTextContent(/La ligne en cours de saisie est comptée dans l'aperçu, mais elle n'est pas encore enregistrée\./)
     expect(itemCalls('insert')).toEqual([])
     expect(api.calls.filter((call) => call.op !== 'select')).toEqual([])
@@ -459,9 +474,10 @@ describe('totals preview', () => {
     await fill(form, { description: 'Incomplète', quantity: 'abc' })
     await waitFor(() => expect(region).toHaveTextContent(/La ligne en cours de saisie est incomplète ou invalide : elle n'est pas comptée/))
     expect(total(region, 'Total HT')).toHaveTextContent('25,000 TND')
-    expect(total(region, 'Total TTC')).toHaveTextContent('30,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('30,150 TND')
     await fill(form, { price: '1e3', rate: '' })
-    expect(total(region, 'Total TTC')).toHaveTextContent('30,150 TND')
+    expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(total(region, 'Net à payer')).toHaveTextContent('30,150 TND')
     expect(window.document.body).not.toHaveTextContent(/NaN|undefined|Infinity|null/)
   })
 
@@ -489,9 +505,10 @@ describe('totals preview', () => {
     const rows = within(region).getAllByRole('row').map((row) => row.textContent)
     expect(rows).toEqual(['TauxBase HTTVA', '7 %5,000 TND0,350 TND', '19 %20,000 TND3,800 TND'])
     expect(total(region, 'Total HT')).toHaveTextContent('25,000 TND')
-    expect(total(region, 'Total TVA')).toHaveTextContent('4,150 TND')
+    expect(total(region, 'TVA')).toHaveTextContent('4,150 TND')
     expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
-    expect(within(region).queryByText('Timbre fiscal')).not.toBeInTheDocument()
+    expect(total(region, 'Net à payer')).toHaveTextContent('29,150 TND')
+    expect(within(region).queryByText('Droit de timbre')).not.toBeInTheDocument()
     expect(region).not.toHaveTextContent(/timbre fiscal est activé/)
     // No default rate either: the field is empty and required.
     const form = await addForm()
@@ -635,9 +652,9 @@ describe('preview helpers', () => {
 
   it('gives exactly what computeTotals gives, and null past the maximum', () => {
     const lines = [line(2000, 10000, 19000)]
-    expect(previewTotals(lines, { state: 'applied', amount: millimes(1000) })).toMatchObject({ totalHT: 20000, totalTVA: 3800, timbre: 1000, totalTTC: 24800 })
-    expect(previewTotals(lines, { state: 'missing' })).toMatchObject({ timbre: null, totalTTC: 23800 })
-    expect(previewTotals(lines, { state: 'none' })).toMatchObject({ timbre: null, totalTTC: 23800 })
+    expect(previewTotals(lines, { state: 'applied', amount: millimes(1000) })).toMatchObject({ totalHT: 20000, totalTVA: 3800, totalTTC: 23800, timbre: 1000, netAPayer: 24800 })
+    expect(previewTotals(lines, { state: 'missing' })).toMatchObject({ timbre: null, totalTTC: 23800, netAPayer: 23800 })
+    expect(previewTotals(lines, { state: 'none' })).toMatchObject({ timbre: null, totalTTC: 23800, netAPayer: 23800 })
     expect(previewTotals([line(2000, 999999999999, 0)], { state: 'none' })).toBeNull()
     expect(previewLineTotal(line(2000, 999999999999, 0))).toBeNull()
     expect(previewLineTotal(line(1500, 1, 0))).toBe(2)

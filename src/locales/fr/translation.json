@@ -387,10 +387,11 @@
       "base": "Base HT",
       "tva": "TVA",
       "totalHT": "Total HT",
-      "totalTVA": "Total TVA",
-      "timbre": "Timbre fiscal",
+      "totalTVA": "TVA",
+      "timbre": "Droit de timbre",
       "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres : il n'est pas compté ici, et la facture ne pourra pas être émise.",
       "totalTTC": "Total TTC",
+      "netAPayer": "Net à payer",
       "settingsError": "Les paramètres de taxes n'ont pas pu être chargés : l'aperçu et le taux par défaut ne sont pas disponibles."
     }
   }
