@@ -2,13 +2,18 @@
 // oracle: the expected values are computed by the local database with numeric arithmetic,
 // independently of the TypeScript module they are used to test.
 //
+// The oracle is private.compute_totals(), the SAME function that writes the totals of an
+// issued document (supabase/migrations/20261013220003_compute_totals.sql). This script
+// contains no formula of its own: it cannot agree with TypeScript while production disagrees.
+//
 //   npm run money:vectors      (needs the local database: npm run db:start)
 //
 // What it does
 //   * Builds VECTOR_COUNT random documents from a fixed seed (same seed = same file).
 //   * Asks Postgres, in ONE read-only SELECT over a VALUES list (no table is read or
-//     written), for: round(quantity * unit_price, 3) per line; per rate, the sum of those
-//     line totals and round(base * rate / 100, 3); the totals; and whether the TTC exceeds
+//     written), for what private.compute_totals() returns for each vector: the total of
+//     each line, the TVA table by rate, total HT, total TVA, total TTC (HT + TVA, never the
+//     timbre) and the net à payer (TTC + timbre); and whether the net à payer exceeds
 //     numeric(12,3).
 //   * Re-checks the hand-written vectors of the file against the same query and FAILS if
 //     one of them disagrees with Postgres. It never rewrites them.
@@ -117,37 +122,29 @@ const sqlNumber = (value) => {
   if (!NUMBER.test(value)) throw new Error(`not a plain number: ${value}`)
   return `${value}::numeric`
 }
-const documentRows = all.map((vector, v) => `(${v}, ${vector.timbre === null ? 'null::numeric' : sqlNumber(vector.timbre)})`)
-const lineRows = all.flatMap((vector, v) =>
-  vector.lines.map(([quantity, unitPrice, rate], n) => `(${v}, ${n}, ${sqlNumber(quantity)}, ${sqlNumber(unitPrice)}, ${sqlNumber(rate)})`),
-)
+// One row per vector: private.compute_totals() is called on the lines of the vector, given
+// as an array of private.document_line built from the values. No table is read or written.
+const rows = all.map((vector, v) => {
+  const lines = vector.lines.map(
+    ([quantity, unitPrice, rate]) => `row(${sqlNumber(quantity)}, ${sqlNumber(unitPrice)}, ${sqlNumber(rate)})::private.document_line`,
+  )
+  const array = lines.length === 0 ? `'{}'::private.document_line[]` : `array[${lines.join(', ')}]`
+  return `(${v}, ${array}, ${vector.timbre === null ? 'null::numeric' : sqlNumber(vector.timbre)})`
+})
 
 const oracleSql = `
-with document(v, timbre) as (values ${documentRows.join(',\n')}),
-line(v, n, quantity, unit_price, rate) as (values ${lineRows.join(',\n')}),
-line_total as (
-  select v, n, rate, round(quantity * unit_price, 3) as total from line
-),
-rate_total as (
-  select v, rate, sum(total) as base, round(sum(total) * rate / 100, 3) as tva
-  from line_total group by v, rate
-),
-total as (
-  select d.v, d.timbre,
-         coalesce((select sum(r.base) from rate_total r where r.v = d.v), 0.000) as ht,
-         coalesce((select sum(r.tva) from rate_total r where r.v = d.v), 0.000) as tva
-  from document d
-)
-select t.v || E'\\t' || json_build_object(
-  'over', (t.ht + t.tva + coalesce(t.timbre, 0)) > ${MAX},
-  'lineTotals', coalesce((select json_agg(l.total::text order by l.n) from line_total l where l.v = t.v), '[]'::json),
-  'tvaLines', coalesce((select json_agg(json_build_array(round(r.rate, 3)::text, r.base::text, r.tva::text) order by r.rate)
-                        from rate_total r where r.v = t.v), '[]'::json),
-  'totalHT', round(t.ht, 3)::text,
-  'totalTVA', round(t.tva, 3)::text,
-  'totalTTC', round(t.ht + t.tva + coalesce(t.timbre, 0), 3)::text
+with vector(v, lines, timbre) as (values ${rows.join(',\n')})
+select vector.v || E'\\t' || json_build_object(
+  'over', t.net_a_payer > ${MAX},
+  'lineTotals', coalesce((select json_agg(u.total::text order by u.n) from unnest(t.line_totals) with ordinality as u (total, n)), '[]'::json),
+  'tvaBreakdown', t.tva_breakdown,
+  'totalHT', t.total_ht::text,
+  'totalTVA', t.total_tva::text,
+  'totalTTC', t.total_ttc::text,
+  'netAPayer', t.net_a_payer::text
 )::text
-from total t order by t.v;
+from vector cross join lateral private.compute_totals(vector.lines, vector.timbre) t
+order by vector.v;
 `
 
 const answers = new Map(
@@ -163,8 +160,9 @@ if (answers.size !== all.length) throw new Error(`expected ${all.length} answers
 
 function expectedFrom(answer) {
   if (answer.over) return { error: 'MoneyRangeError' }
-  const { lineTotals, tvaLines, totalHT, totalTVA, totalTTC } = answer
-  return { lineTotals, tvaLines, totalHT, totalTVA, totalTTC }
+  const { lineTotals, tvaBreakdown, totalHT, totalTVA, totalTTC, netAPayer } = answer
+  const tvaLines = tvaBreakdown.map((row) => [row.rate, row.base, row.tva])
+  return { lineTotals, tvaLines, totalHT, totalTVA, totalTTC, netAPayer }
 }
 
 // --- hand-written vectors must agree with Postgres --------------------------------------------

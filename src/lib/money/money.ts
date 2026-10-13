@@ -16,7 +16,10 @@
 //   2. for each TVA rate: base HT = sum of the (already rounded) line totals of that rate;
 //      TVA = base HT x rate / 100, rounded to the millime ONCE per rate, not per line;
 //   3. total HT = sum of the bases, total TVA = sum of the TVA of each rate,
-//      total TTC = total HT + total TVA + timbre. Nothing is rounded again in step 3.
+//      total TTC = total HT + total TVA (NEVER the timbre),
+//      net à payer = total TTC + timbre. Nothing is rounded again in step 3.
+// This is exactly what private.compute_totals() does in Postgres, which is both what an
+// issued document stores and the oracle of vectors.json.
 // "Half-up": exactly half a millime goes up (0.0005 -> 0.001). With no negative amount this
 // is what Postgres round(numeric, 3) does, so SQL and TypeScript agree on every tie.
 // TODO(accountant): have this rule (per-rate TVA, half-up, timbre added after TVA and not
@@ -67,9 +70,12 @@ export type Totals = {
   readonly tvaLines: readonly TvaLine[]
   readonly totalHT: Millimes
   readonly totalTVA: Millimes
+  /** total HT + total TVA. Never includes the timbre. */
+  readonly totalTTC: Millimes
   /** As given: null when no timbre applies. */
   readonly timbre: Millimes | null
-  readonly totalTTC: Millimes
+  /** total TTC + timbre: what the client owes. Equal to totalTTC when there is no timbre. */
+  readonly netAPayer: Millimes
 }
 
 // --- internals ---------------------------------------------------------------------------
@@ -269,8 +275,10 @@ export function tvaByRate(lines: readonly Line[]): TvaLine[] {
 }
 
 /**
- * Every total of a document. No lines gives zeros (plus the timbre, if one is given).
- * @throws MoneyRangeError if any line total, base, TVA or total exceeds the maximum.
+ * Every total of a document. No lines gives zeros (and a net à payer equal to the timbre,
+ * if one is given).
+ * @throws MoneyRangeError if any line total, base, TVA or total exceeds the maximum. As no
+ * amount is negative, the net à payer is the largest of them all.
  */
 export function computeTotals(input: { readonly lines: readonly Line[]; readonly timbre: Millimes | null }): Totals {
   const lines = input.lines.map(withTotal)
@@ -283,7 +291,8 @@ export function computeTotals(input: { readonly lines: readonly Line[]; readonly
     tvaLines,
     totalHT: toMillimes(totalHT, 'total HT'),
     totalTVA: toMillimes(totalTVA, 'total TVA'),
+    totalTTC: toMillimes(totalHT + totalTVA, 'total TTC'),
     timbre: input.timbre,
-    totalTTC: toMillimes(totalHT + totalTVA + timbre, 'total TTC'),
+    netAPayer: toMillimes(totalHT + totalTVA + timbre, 'net à payer'),
   }
 }

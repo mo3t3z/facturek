@@ -31,7 +31,7 @@ import vectorFile from './vectors.json'
 // --- vectors -----------------------------------------------------------------------------------
 type Expected =
   | { error: string }
-  | { lineTotals: string[]; tvaLines: string[][]; totalHT: string; totalTVA: string; totalTTC: string }
+  | { lineTotals: string[]; tvaLines: string[][]; totalHT: string; totalTVA: string; totalTTC: string; netAPayer: string }
 type Vector = { comment?: string; lines: string[][]; timbre: string | null; expected: Expected }
 
 const handWritten = vectorFile.handWritten as Vector[]
@@ -60,6 +60,7 @@ function actual(vector: Vector): Expected {
       totalHT: toDbNumeric(totals.totalHT),
       totalTVA: toDbNumeric(totals.totalTVA),
       totalTTC: toDbNumeric(totals.totalTTC),
+      netAPayer: toDbNumeric(totals.netAPayer),
     }
   } catch (error) {
     if (error instanceof MoneyRangeError) return { error: 'MoneyRangeError' }
@@ -472,10 +473,11 @@ describe('computeTotals', () => {
       tvaLines: [],
       totalHT: 0,
       totalTVA: 0,
-      timbre: null,
       totalTTC: 0,
+      timbre: null,
+      netAPayer: 0,
     })
-    expect(computeTotals({ lines: [], timbre: millimes(600) })).toMatchObject({ totalHT: 0, totalTVA: 0, timbre: 600, totalTTC: 600 })
+    expect(computeTotals({ lines: [], timbre: millimes(600) })).toMatchObject({ totalHT: 0, totalTVA: 0, totalTTC: 0, timbre: 600, netAPayer: 600 })
   })
 
   it('returns each line with its total, in the order given', () => {
@@ -487,9 +489,20 @@ describe('computeTotals', () => {
     ])
   })
 
-  it('adds HT, TVA and the timbre; the timbre is not subject to TVA', () => {
+  it('total TTC is HT + TVA and never the timbre; the net à payer adds the timbre, which is not subject to TVA', () => {
     const totals = computeTotals({ lines: [line(2000, 10000, 19000)], timbre: millimes(1000) })
-    expect(totals).toMatchObject({ totalHT: 20000, totalTVA: 3800, timbre: 1000, totalTTC: 24800 })
+    expect(totals).toMatchObject({ totalHT: 20000, totalTVA: 3800, totalTTC: 23800, timbre: 1000, netAPayer: 24800 })
+  })
+
+  it('without a timbre the net à payer is the total TTC', () => {
+    const totals = computeTotals({ lines: [line(2000, 10000, 19000)], timbre: null })
+    expect(totals).toMatchObject({ totalTTC: 23800, timbre: null, netAPayer: 23800 })
+  })
+
+  it('raises the range error on the net à payer: a total TTC at the maximum plus one millime of timbre', () => {
+    const atMaximum = [line(1000, 999999999999, 0)]
+    expect(computeTotals({ lines: atMaximum, timbre: null })).toMatchObject({ totalTTC: 999999999999, netAPayer: 999999999999 })
+    expect(() => computeTotals({ lines: atMaximum, timbre: millimes(1) })).toThrow(MoneyRangeError)
   })
 
   it('does not change its input', () => {
