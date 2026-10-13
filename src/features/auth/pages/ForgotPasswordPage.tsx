@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { errorMessageKey, isNetworkError } from '../../../lib/errors'
 import { supabase } from '../../../lib/supabase'
 import { AuthLayout } from '../components/AuthLayout'
-import { Alert, SubmitButton, TextField, TextLink } from '../components/FormControls'
+import { Alert, SubmitButton, TextField, TextLink } from '../../../components/FormControls'
 import { type ForgotPasswordValues, forgotPasswordSchema } from '../schemas'
 
 export function ForgotPasswordPage() {

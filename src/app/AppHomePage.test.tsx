@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { authState, fakeSession, newQueryClient, Providers } from '../test/helpers'
 
@@ -15,6 +16,7 @@ vi.mock('../lib/supabase', () => ({
 }))
 
 import { AppHomePage } from './AppHomePage'
+import { AppLayout } from './AppLayout'
 
 const ok = <T,>(data: T) => ({ data, error: null })
 const failed = (error: object) => ({ data: null, error })
@@ -28,9 +30,17 @@ beforeEach(() => {
 
 function renderHome(session = fakeSession()) {
   const client = newQueryClient()
+  // The dashboard is rendered where it lives: inside the app shell, which owns the
+  // sign-out button.
   const ui = (s: ReturnType<typeof fakeSession>) => (
     <Providers auth={authState({ session: s })} client={client}>
-      <AppHomePage />
+      <MemoryRouter initialEntries={['/app']}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/app" element={<AppHomePage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
     </Providers>
   )
   const view = render(ui(session))

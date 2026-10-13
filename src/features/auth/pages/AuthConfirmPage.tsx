@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { errorMessageKey } from '../../../lib/errors'
 import { supabase } from '../../../lib/supabase'
 import { AuthLayout } from '../components/AuthLayout'
-import { Alert, TextLink } from '../components/FormControls'
+import { Alert, TextLink } from '../../../components/FormControls'
 import { useAuth } from '../context'
 
 const LINK_TYPES = ['email', 'recovery'] as const

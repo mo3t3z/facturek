@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { supabase } from '../../../lib/supabase'
 import { errorMessageKey } from '../../../lib/errors'
 import { AuthLayout } from '../components/AuthLayout'
-import { Alert, SubmitButton, TextField, TextLink } from '../components/FormControls'
+import { Alert, SubmitButton, TextField, TextLink } from '../../../components/FormControls'
 import { type SignupValues, signupSchema } from '../schemas'
 
 // Codes that only occur for an address the server already knows: it has an account, or an

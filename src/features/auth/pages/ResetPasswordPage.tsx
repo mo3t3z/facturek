@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router'
 import { errorMessageKey } from '../../../lib/errors'
 import { supabase } from '../../../lib/supabase'
 import { AuthLayout } from '../components/AuthLayout'
-import { Alert, SubmitButton, TextField, TextLink } from '../components/FormControls'
+import { Alert, SubmitButton, TextField, TextLink } from '../../../components/FormControls'
 import { useAuth } from '../context'
 import { type ResetPasswordValues, resetPasswordSchema } from '../schemas'
 
