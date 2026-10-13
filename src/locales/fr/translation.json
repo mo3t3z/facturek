@@ -7,6 +7,7 @@
   "nav": {
     "label": "Navigation principale",
     "home": "Tableau de bord",
+    "documents": "Documents",
     "clients": "Clients",
     "settings": "Paramètres"
   },
@@ -15,7 +16,7 @@
     "signedInAs": "Connecté en tant que",
     "organization": "Entreprise",
     "role": "Rôle",
-    "comingSoon": "Les devis et les factures arrivent dans la prochaine étape.",
+    "comingSoon": "Créez vos devis et vos factures depuis le menu Documents.",
     "accountError": "Votre espace n'a pas pu être préparé.",
     "retry": "Réessayer",
     "retrying": "Nouvel essai…"
@@ -213,6 +214,117 @@
     },
     "errors": {
       "notSaved": "Rien n'a été enregistré : vous n'avez pas les droits nécessaires pour modifier ces paramètres, ou ils n'existent plus."
+    }
+  },
+  "documents": {
+    "title": "Documents",
+    "newDevis": "Nouveau devis",
+    "newFacture": "Nouvelle facture",
+    "type": {
+      "devis": "Devis",
+      "facture": "Facture"
+    },
+    "status": {
+      "devis": {
+        "draft": "Brouillon",
+        "sent": "Émis",
+        "paid": "Payé",
+        "cancelled": "Annulé"
+      },
+      "facture": {
+        "draft": "Brouillon",
+        "sent": "Émise",
+        "paid": "Payée",
+        "cancelled": "Annulée"
+      },
+      "any": {
+        "draft": "Brouillon",
+        "sent": "Émis",
+        "paid": "Payé",
+        "cancelled": "Annulé"
+      }
+    },
+    "filters": {
+      "legend": "Filtrer les documents",
+      "type": "Type",
+      "status": "Statut",
+      "all": "Tous"
+    },
+    "count_one": "{{count}} document",
+    "count_other": "{{count}} documents",
+    "empty": "Aucun document pour le moment. Créez votre premier devis ou votre première facture.",
+    "noMatch": "Aucun document ne correspond à ces filtres.",
+    "truncated": "Seuls les {{count}} documents les plus récents sont chargés : la liste peut être incomplète.",
+    "loadError": "Les documents n'ont pas pu être chargés.",
+    "notFound": "Ce document est introuvable. Il a peut-être été supprimé.",
+    "backToList": "Retour aux documents",
+    "columns": {
+      "number": "Numéro",
+      "noNumber": "Sans numéro",
+      "client": "Client",
+      "noClient": "Sans client",
+      "status": "Statut",
+      "issueDate": "Date d'émission",
+      "dueDate": "Échéance",
+      "total": "Total TTC",
+      "noValue": "—"
+    },
+    "open": "Ouvrir",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "actionNamed": "{{action}} : {{label}}",
+    "deleteQuestion": "Supprimer définitivement ce brouillon ({{label}}) ?",
+    "deleteConfirm": "Confirmer la suppression",
+    "deleting": "Suppression…",
+    "cancel": "Annuler",
+    "draftLabel": "{{type}} en brouillon, {{client}}",
+    "issuedLabel": "{{type}} {{number}}, {{client}}",
+    "fields": {
+      "type": "Type de document",
+      "chooseType": "Choisir…",
+      "client": "Client",
+      "chooseClient": "Choisir un client…",
+      "issueDate": "Date d'émission",
+      "issueDateHint": "Facultatif. Laissée vide, ce sera la date du jour de l'émission.",
+      "dueDate": "Date d'échéance",
+      "optional": "Facultatif.",
+      "notes": "Notes",
+      "notesHint": "Facultatif. Ce texte figurera sur le document."
+    },
+    "noClients": {
+      "message": "Vous n'avez encore aucun client. Un document a besoin d'un client.",
+      "action": "Créer un client"
+    },
+    "create": {
+      "titleDevis": "Nouveau devis",
+      "titleFacture": "Nouvelle facture",
+      "titleAny": "Nouveau document",
+      "submit": "Créer le brouillon",
+      "submitting": "Création…"
+    },
+    "update": {
+      "titleDevis": "Devis en brouillon",
+      "titleFacture": "Facture en brouillon",
+      "intro": "Ce brouillon n'a pas encore de numéro : il lui sera attribué à l'émission.",
+      "submit": "Enregistrer le brouillon",
+      "submitting": "Enregistrement…",
+      "saved": "Brouillon enregistré."
+    },
+    "issued": {
+      "notice": "Ce document a été émis : il ne peut plus être modifié.",
+      "buyer": "Client",
+      "buyerMatricule": "Matricule fiscal",
+      "buyerAddress": "Adresse"
+    },
+    "validation": {
+      "typeRequired": "Choisissez le type de document.",
+      "clientRequired": "Choisissez un client.",
+      "dateInvalid": "Date invalide.",
+      "dueBeforeIssue": "La date d'échéance ne peut pas précéder la date d'émission."
+    },
+    "errors": {
+      "notDraftOrMissing": "Rien n'a été modifié : ce document n'est plus un brouillon, ou il n'existe plus.",
+      "clientMissing": "Ce client n'existe plus. Choisissez-en un autre."
     }
   }
 }

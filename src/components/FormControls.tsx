@@ -42,6 +42,89 @@ export function TextField({ label, hint, errorKey, ...inputProps }: TextFieldPro
   )
 }
 
+type SelectFieldProps = ComponentProps<'select'> & {
+  label: string
+  hint?: string
+  /** i18n key coming from the Zod schema. */
+  errorKey?: string | undefined
+}
+
+/** A labelled <select>; its options are given as children. Same announcements as TextField. */
+export function SelectField({ label, hint, errorKey, children, ...fieldProps }: SelectFieldProps) {
+  const { t } = useTranslation()
+  const id = useId()
+  const hintId = `${id}-hint`
+  const errorId = `${id}-error`
+  const describedBy = [hint ? hintId : null, errorKey ? errorId : null].filter(Boolean).join(' ')
+  return (
+    <div className="mb-4">
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
+        {label}
+      </label>
+      <select
+        id={id}
+        aria-invalid={errorKey ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600"
+        {...fieldProps}
+      >
+        {children}
+      </select>
+      {hint && (
+        <p id={hintId} className="mt-1 text-sm text-slate-500">
+          {hint}
+        </p>
+      )}
+      {errorKey && (
+        <p id={errorId} role="alert" className="mt-1 text-sm text-red-700">
+          {t(errorKey)}
+        </p>
+      )}
+    </div>
+  )
+}
+
+type TextAreaFieldProps = ComponentProps<'textarea'> & {
+  label: string
+  hint?: string
+  /** i18n key coming from the Zod schema. */
+  errorKey?: string | undefined
+}
+
+/** A labelled multi-line text. Same announcements as TextField. */
+export function TextAreaField({ label, hint, errorKey, ...fieldProps }: TextAreaFieldProps) {
+  const { t } = useTranslation()
+  const id = useId()
+  const hintId = `${id}-hint`
+  const errorId = `${id}-error`
+  const describedBy = [hint ? hintId : null, errorKey ? errorId : null].filter(Boolean).join(' ')
+  return (
+    <div className="mb-4">
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">
+        {label}
+      </label>
+      <textarea
+        id={id}
+        rows={3}
+        aria-invalid={errorKey ? true : undefined}
+        aria-describedby={describedBy || undefined}
+        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600"
+        {...fieldProps}
+      />
+      {hint && (
+        <p id={hintId} className="mt-1 text-sm text-slate-500">
+          {hint}
+        </p>
+      )}
+      {errorKey && (
+        <p id={errorId} role="alert" className="mt-1 text-sm text-red-700">
+          {t(errorKey)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 type CheckboxFieldProps = Omit<ComponentProps<'input'>, 'type'> & { label: string }
 
 /** A checkbox with its label on the same line; the whole line is the touch target. */
