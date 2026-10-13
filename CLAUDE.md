@@ -22,6 +22,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run test:e2e-auth` – real signup, email confirmation, login, `ensure_my_account`
   and password recovery through the LOCAL Auth/REST APIs and Mailpit (never prints keys)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
+- `npm run money:vectors` – regenerate the random vectors of `src/lib/money/vectors.json`
+  with the LOCAL Postgres as the oracle (read-only SELECT; fixed seed, same output every
+  time). It also checks the hand-written vectors against Postgres and fails if one differs.
 
 ## Structure
 
@@ -51,6 +54,14 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 
 ### Data
 - Money is `numeric(12,3)` (TND has 3 decimals). Never floats.
+- In TypeScript, money is an integer number of millimes (`Millimes`), quantities and rates
+  are integers x 1000 (`QtyMilli`, `RateMilli`). Every calculation, parse and format goes
+  through `src/lib/money/money.ts`: a pure module (no import), bigint inside, no
+  `parseFloat` / `toFixed` / `Math.round` / `Intl`. Rounding rule: line total rounded
+  half-up per line, TVA rounded half-up ONCE per rate. TODO(accountant): verify it.
+- Money, quantities and rates are read from PostgREST as text (`total_ttc::text`) and
+  parsed with `fromDbNumeric` / `fromDbQuantity` / `fromDbRate`; they are sent back with
+  `toDbNumeric`. A JSON number would be a float.
 - Tax rates and amounts are NEVER hardcoded in code or migrations. They live in
   `tax_settings` and must be verified with an accountant / official source.
 - Document numbers are assigned only by `public.finalize_document()` in Postgres
