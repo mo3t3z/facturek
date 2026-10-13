@@ -539,3 +539,14 @@ CHECK, and each part ends green.
   on factures only), `money.ts`, the vectors, the scripts, and the five-row preview.
 - **P2d2b**: `finalize_document(uuid, text)`, DF009 / DF022 / DF023 and their tests.
 - **P2d3**: the issue button, its confirmation, and the read-only issued view.
+
+### Notes added while building P2d2a
+
+- `007_signup.test.sql` also enabled the timbre without an amount (one assertion); it was
+  not in the list of affected tests of section G, which named only `001` and `005`.
+- The preview shows the "Droit de timbre" row only when a timbre applies, so a devis
+  shows four rows, not five: a row "Droit de timbre 0,000" on a devis would suggest that
+  a timbre exists for it.
+- Until P2d2b adds DF023, a document whose totals do not fit `numeric(12,3)` fails at
+  issue with a raw `22003` raised by the totals trigger.
+- TODO(accountant), I-14: `finalize_document()` still requires `seller_name` only.

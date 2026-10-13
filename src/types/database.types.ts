@@ -85,14 +85,14 @@ isOneToOne: false
                   ]
                 },"documents": {
                   Row: {
-                    "buyer_address": string | null,"buyer_matricule_fiscal": string | null,"buyer_name": string | null,"client_id": string | null,"converted_from": string | null,"created_at": string,"currency": string,"due_date": string | null,"id": string,"issue_date": string | null,"notes": string | null,"number": number | null,"organization_id": string,"retenue_enabled": boolean | null,"retenue_rate": number | null,"retenue_threshold": number | null,"seller_address": string | null,"seller_matricule_fiscal": string | null,"seller_name": string | null,"status": Database["public"]['Enums']["document_status"],"timbre_fiscal": number | null,"type": Database["public"]['Enums']["document_type"],"updated_at": string,"year": number | null
+                    "buyer_address": string | null,"buyer_matricule_fiscal": string | null,"buyer_name": string | null,"client_id": string | null,"converted_from": string | null,"created_at": string,"currency": string,"due_date": string | null,"id": string,"issue_date": string | null,"net_a_payer": number | null,"notes": string | null,"number": number | null,"organization_id": string,"retenue_enabled": boolean | null,"retenue_rate": number | null,"retenue_threshold": number | null,"seller_address": string | null,"seller_matricule_fiscal": string | null,"seller_name": string | null,"status": Database["public"]['Enums']["document_status"],"timbre_fiscal": number | null,"total_ht": number | null,"total_ttc": number | null,"total_tva": number | null,"tva_breakdown": Json | null,"type": Database["public"]['Enums']["document_type"],"updated_at": string,"year": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id": string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"type": Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"net_a_payer"?: number | null,"notes"?: string | null,"number"?: number | null,"organization_id": string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"total_ht"?: number | null,"total_ttc"?: number | null,"total_tva"?: number | null,"tva_breakdown"?: Json | null,"type": Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
                   }
                   Update: {
-                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"notes"?: string | null,"number"?: number | null,"organization_id"?: string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"type"?: Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
+                    "buyer_address"?: string | null,"buyer_matricule_fiscal"?: string | null,"buyer_name"?: string | null,"client_id"?: string | null,"converted_from"?: string | null,"created_at"?: string,"currency"?: string,"due_date"?: string | null,"id"?: string,"issue_date"?: string | null,"net_a_payer"?: number | null,"notes"?: string | null,"number"?: number | null,"organization_id"?: string,"retenue_enabled"?: boolean | null,"retenue_rate"?: number | null,"retenue_threshold"?: number | null,"seller_address"?: string | null,"seller_matricule_fiscal"?: string | null,"seller_name"?: string | null,"status"?: Database["public"]['Enums']["document_status"],"timbre_fiscal"?: number | null,"total_ht"?: number | null,"total_ttc"?: number | null,"total_tva"?: number | null,"tva_breakdown"?: Json | null,"type"?: Database["public"]['Enums']["document_type"],"updated_at"?: string,"year"?: number | null
                   }
                   Relationships: [
                     {
@@ -224,6 +224,7 @@ isOneToOne: true
 "due_date": string | null,
 "id": string,
 "issue_date": string | null,
+"net_a_payer": number | null,
 "notes": string | null,
 "number": number | null,
 "organization_id": string,
@@ -235,6 +236,10 @@ isOneToOne: true
 "seller_name": string | null,
 "status": Database["public"]['Enums']["document_status"],
 "timbre_fiscal": number | null,
+"total_ht": number | null,
+"total_ttc": number | null,
+"total_tva": number | null,
+"tva_breakdown": Json | null,
 "type": Database["public"]['Enums']["document_type"],
 "updated_at": string,
 "year": number | null

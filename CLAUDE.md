@@ -33,7 +33,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   statements, branches, functions and lines of `src/lib/money`
 - `npm run money:vectors` – regenerate the random vectors of `src/lib/money/vectors.json`
   with the LOCAL Postgres as the oracle (read-only SELECT; fixed seed, same output every
-  time). It also checks the hand-written vectors against Postgres and fails if one differs.
+  time). The oracle is `private.compute_totals()`, the function that writes the totals of
+  an issued document, not a copy of its formula. It also checks the hand-written vectors
+  against Postgres and fails if one differs (it never rewrites them).
 
 ## Structure
 
@@ -68,6 +70,25 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   through `src/lib/money/money.ts`: a pure module (no import), bigint inside, no
   `parseFloat` / `toFixed` / `Math.round` / `Intl`. Rounding rule: line total rounded
   half-up per line, TVA rounded half-up ONCE per rate. TODO(accountant): verify it.
+- The rounding rule exists ONCE in SQL: `private.compute_totals(private.document_line[],
+  numeric)` (immutable, reads no table, executable by no API role). Never write
+  `round(` on an amount anywhere else in a migration, a function or a script: call it.
+  `008_totals.test.sql` fails if a second function of the application rounds.
+- Names of the totals, in SQL (`documents`) and in TypeScript (`Totals`), same meaning on
+  both sides. TODO(accountant):
+  `total_ht` / `totalHT`; `total_tva` / `totalTVA`; `total_ttc` / `totalTTC` = HT + TVA,
+  NEVER the timbre; `timbre_fiscal` / `timbre` = the droit de timbre charged (NULL = none);
+  `net_a_payer` / `netAPayer` = total TTC + timbre, what the client owes;
+  `tva_breakdown` = per-rate table `[{"rate","base","tva"}]` whose values are TEXT with 3
+  decimals, never JSON numbers. The retenue à la source is in none of them.
+- A draft stores NO total (CHECK). The five totals columns are written when a document
+  leaves `draft`, by the trigger `set_document_totals`, for every role: whatever the
+  caller sends is overwritten from the lines. They are then frozen like every other
+  column of an issued document. The API role can read them and write none.
+- The timbre fiscal is charged on factures only: `finalize_document()` snapshots it only
+  for a facture, and a CHECK forbids it on a devis for every role. An organization cannot
+  enable the timbre without an amount (CHECK on `tax_settings`).
+- `document_items.description` is at most 500 characters (CHECK), like the screen.
 - Money, quantities and rates are read from PostgREST as text (`total_ttc::text`) and
   parsed with `fromDbNumeric` / `fromDbQuantity` / `fromDbRate`; they are sent back with
   `toDbNumeric`. A JSON number would be a float.
@@ -137,7 +158,7 @@ introduced.
 | DF004 | Document has no items | `public.finalize_document()` |
 | DF005 | Issue date is in the future (today = Africa/Tunis) | `public.finalize_document()` |
 | DF006 | Issue date is earlier than the previous numbered document of the same organization, type and year | `public.finalize_document()` |
-| DF007 | Facture while `timbre_enabled` is true but `timbre_fiscal` has no amount | `public.finalize_document()` |
+| DF007 | Facture while `timbre_enabled` is true but `timbre_fiscal` has no amount. Second line of defence: the CHECK `tax_settings_timbre_enabled_has_amount` already makes that state impossible (`23514`) | `public.finalize_document()` |
 | DF008 | Due date is before the issue date | `public.finalize_document()` |
 | DF010 | A non-draft document cannot be deleted | `private.guard_documents()` (trigger on `documents`) |
 | DF011 | A non-draft document is frozen: a column other than `status` / `updated_at` was changed (the message names the columns) | `private.guard_documents()` |
@@ -156,11 +177,21 @@ introduced.
   from ESLint. (Prettier is not installed; if it is added, ignore this file there too.)
 
 ### TODO (later phases, not started)
-- P2d (details in `docs/phase2-plan.md`): CHECK on `tax_settings` (timbre enabled requires
-  an amount; verify existing rows first); length CHECK on `document_items.description`
-  (500, like the screen) and review of the other free-text columns; `finalize_document`
-  must not snapshot the timbre on a devis; names of the stored totals to decide after the
-  accountant answers (total TTC without timbre vs net à payer).
+- P2d (design and decisions in `docs/p2d-design.md`). Done in P2d2a: the two CHECKs, the
+  stored totals and their trigger, `private.compute_totals()`, timbre on factures only.
+  - P2d2b: `finalize_document(uuid, text)` with the net à payer the user confirmed, sent
+    as text; new codes DF009 (expected total mismatch), DF022 (total TTC is zero), DF023
+    (a total exceeds `numeric(12,3)`). Until then a document whose totals do not fit
+    `numeric(12,3)` fails at issue with a raw `22003`.
+  - P2d3: the issue button with its confirmation, and the read-only issued view.
+  - TODO(accountant): `finalize_document()` requires `seller_name` only. A facture without
+    the seller's matricule fiscal or address may not be legally valid. Nothing is refused
+    for now; the confirmation screen of P2d3 must WARN when a seller field is missing.
+  - TODO(accountant): is a facture with a total of zero ever legitimate (P2d2b refuses it)?
+  - Separate small checkpoint: length CHECKs on the other free-text columns (proposal:
+    notes 2000, names 200, addresses 500); none has a limit in the database today.
+  - Reserved codes: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis that has a
+    converted facture.
 - Later: avoir (credit note) type; TTN fields (`ttn_reference`, `ttn_status`, signed XML)
   as columns writable after issue, excluded from what `guard_documents` freezes; TEIF
   export as a separate module. The external facts (El Fatoora from 2026, TTN portal,
@@ -240,8 +271,10 @@ introduced.
   `document_id`. `readItem()` (`itemSchema.ts`) is the single definition of a complete line.
 - The totals on a draft are a PREVIEW (`preview.ts` + `TotalsPreview`): every amount comes
   from `computeTotals()`, nothing is written, and it is labelled "Aperçu, non enregistré".
+  Rows, in this order: Total HT, TVA, Total TTC, Droit de timbre (only when one applies:
+  a facture of an organization that charges it), Net à payer.
   No `parseFloat` / `Number(` / `toFixed` / `Math.round` in `src/features/documents`.
-  Stored totals arrive with finalizing (P2d).
+  The stored totals of an issued document are not displayed yet (P2d3).
 - Screens that need the organization are routed under `<RequireOrganization>` and read it
   with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
 - Text typed by the user never goes into a PostgREST filter string (the clients search
