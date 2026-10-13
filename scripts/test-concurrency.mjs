@@ -24,6 +24,16 @@
 //      fails (no items) or the delete fails; a sent document never ends up with no items.
 //   6. ensure_my_account() called from several connections at once for a user without an
 //      organization creates exactly ONE organization and ONE membership.
+//   7. Finalizes with the RIGHT expected total and finalizes with a WRONG one, released at
+//      the same instant on the same series: every wrong one is refused with DF009 and stays
+//      a draft, the right ones receive consecutive numbers, and the counter moved by exactly
+//      the number of documents issued (a refused call consumes no number, leaves no gap).
+//
+// The expected total. finalize_document(id, expected) refuses to issue unless `expected`
+// is the net à payer it computes itself. Every call below sends the amount computed from
+// the lines of the document as they are just before the call (never a hard-coded amount),
+// by private.compute_totals(), read as postgres before the user's transaction starts: it
+// plays the part of the total the user saw on the screen.
 //
 // session_replication_role = replica (switches triggers off for one transaction) is used
 // in exactly two places, both documented where they happen, and ONLY because the target is
@@ -43,6 +53,11 @@ const SAME_DOCUMENT_CALLERS = 5
 const ITEM_INSERTERS = 15
 const DELETE_RACE_ROUNDS = 9
 const ENSURE_CALLERS = 5
+const EXPECTED_RIGHT = 8
+const EXPECTED_WRONG = 8
+// How many times the finalizer of scenario 4 may be refused with DF009 (the lines changed
+// between the moment it read them and the moment it got the document) before giving up.
+const ITEM_RACE_ATTEMPTS = 12
 // Each worker keeps its transaction open this long after finalizing, so the transactions
 // are guaranteed to overlap instead of finishing before the next one starts.
 const HOLD_SECONDS = 0.1
@@ -107,7 +122,9 @@ const afterRollbackDoc = randomUUID()
 const sameDoc = randomUUID()
 const itemRaceDoc = randomUUID()
 const deleteRaceDocs = Array.from({ length: DELETE_RACE_ROUNDS }, () => randomUUID())
-const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs]
+const rightTotalDocs = Array.from({ length: EXPECTED_RIGHT }, () => randomUUID())
+const wrongTotalDocs = Array.from({ length: EXPECTED_WRONG }, () => randomUUID())
+const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs, ...rightTotalDocs, ...wrongTotalDocs]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
 const gunKey = 700000000 + Math.floor(Math.random() * 1000000)
 // Created by the signup trigger; read back after the signup.
@@ -178,12 +195,32 @@ ${body}
 `
 }
 
-function finalizeAndCommit(documentId) {
-  return asUser(`
-select 'NUMBER=' || number from public.finalize_document('${documentId}');
+/**
+ * psql: puts in the variable :expected the net à payer of the document as its lines are NOW,
+ * as text with 3 decimals. Computed by the production function private.compute_totals(),
+ * with the timbre finalize would apply (a facture of an organization that charges it).
+ * It runs as postgres, outside the user's transaction: the API role cannot call the function.
+ */
+const readExpected = (documentId) => `
+select t.net_a_payer::numeric(12,3)::text as expected
+from private.compute_totals(
+  (select array_agg(row(i.quantity, i.unit_price, i.tva_rate)::private.document_line)
+   from public.document_items i where i.document_id = '${documentId}'),
+  (select case when d.type = 'facture' and coalesce(s.timbre_enabled, false) then s.timbre_fiscal end
+   from public.documents d left join public.tax_settings s on s.organization_id = d.organization_id
+   where d.id = '${documentId}')) t \\gset
+`
+
+/** The call itself. `wrong` sends a text that is not the expected total (one digit too many). */
+const finalizeCall = (documentId, { wrong = false } = {}) =>
+  `select 'NUMBER=' || number from public.finalize_document('${documentId}', ${wrong ? `:'expected' || '0'` : `:'expected'`});`
+
+function finalizeAndCommit(documentId, options) {
+  return `${readExpected(documentId)}${asUser(`
+${finalizeCall(documentId, options)}
 select pg_sleep(${HOLD_SECONDS});
 commit;
-`)
+`)}`
 }
 
 /**
@@ -315,10 +352,10 @@ select coalesce(string_agg(organization_id::text, ','), '') from public.organiza
 
   // 2. A rolled back finalize consumes no number ----------------------------------------
   console.log('\n[2] finalize inside a transaction that is rolled back')
-  const rolledBack = await runSql(asUser(`
-select 'NUMBER=' || number from public.finalize_document('${rollbackDoc}');
+  const rolledBack = await runSql(`${readExpected(rollbackDoc)}${asUser(`
+${finalizeCall(rollbackDoc)}
 rollback;
-`))
+`)}`)
   check(rolledBack.code === 0 && numberOf(rolledBack.stdout) === WORKERS + 1,
     `inside the transaction the document received number ${WORKERS + 1}`,
     rolledBack.code === 0 ? `returned: ${numberOf(rolledBack.stdout)}` : errorOf(rolledBack.stderr))
@@ -361,14 +398,32 @@ values ('${orgId}', '${itemRaceDoc}', 'race ${i}', 1, 1, 0);
 select 'INSERTED';
 commit;
 `)}`
+  // The finalizer reads the lines, then calls finalize with the total of what it read, like
+  // a user who looks at the screen and then clicks. If a line was committed in between, the
+  // call is refused with DF009 (the total the user saw is no longer the total): it reads
+  // again and retries, like the user would. psql stops at the first error by default, so
+  // for this one script errors are handled by hand (\\if :ERROR).
+  const oneAttempt = `
+\\if :pending
+${readExpected(itemRaceDoc)}${asUser(`
+${finalizeCall(itemRaceDoc)}
+\\if :ERROR
+  \\echo REFUSED=:SQLSTATE
+  rollback;
+\\else
+  \\set pending false
+  select pg_sleep(0.3);
+  select 'COUNTED=' || count(*) from public.document_items where document_id = '${itemRaceDoc}';
+  commit;
+\\endif
+`)}
+\\endif`
   const finalizeWhileInserting = `
 select pg_sleep(0.1);
-${asUser(`
-select 'NUMBER=' || number from public.finalize_document('${itemRaceDoc}');
-select pg_sleep(0.3);
-select 'COUNTED=' || count(*) from public.document_items where document_id = '${itemRaceDoc}';
-commit;
-`)}`
+\\set ON_ERROR_STOP 0
+\\set pending true
+${Array.from({ length: ITEM_RACE_ATTEMPTS }, () => oneAttempt).join('\n')}
+`
   const itemRace = await runTogether([
     finalizeWhileInserting,
     ...Array.from({ length: ITEM_INSERTERS }, (_, i) => insertItem(i)),
@@ -383,8 +438,12 @@ select status from public.documents where id = '${itemRaceDoc}';
 select count(*) from public.document_items where document_id = '${itemRaceDoc}';
 `)).split('\n')
   console.log(`      inserted before the finalize: ${inserted.length}, rejected: ${rejected.length}, items counted inside the finalizing transaction: ${countedAtFinalize}, items stored now: ${itemsStored}`)
-  check(itemFinalizer.code === 0 && itemDocStatus === 'sent', 'the finalize succeeded',
-    itemFinalizer.code === 0 ? `status: ${itemDocStatus}` : errorOf(itemFinalizer.stderr))
+  const refusals = [...itemFinalizer.stdout.matchAll(/^REFUSED=(\S+)$/gm)].map((match) => match[1])
+  console.log(`      finalize attempts refused because a line was committed after the total was read: ${refusals.length}${refusals.length ? ` (${[...new Set(refusals)].join(', ')})` : ''}`)
+  check(refusals.every((code) => code === 'DF009'), 'every refused attempt of the finalizer was a DF009 (expected total differs), nothing else',
+    `codes: ${refusals.join(', ') || '(none)'}`)
+  check(numberOf(itemFinalizer.stdout) !== null && itemDocStatus === 'sent', 'the finalize succeeded',
+    numberOf(itemFinalizer.stdout) !== null ? `status: ${itemDocStatus}` : `never succeeded in ${ITEM_RACE_ATTEMPTS} attempts: ${errorOf(itemFinalizer.stderr)}`)
   check(Number(itemsStored) === countedAtFinalize,
     'the document holds exactly the items it had when it was finalized (nothing slipped in afterwards)',
     `at finalize: ${countedAtFinalize}, now: ${itemsStored}`)
@@ -423,8 +482,8 @@ from private.compute_totals(
     const finalizeDelay = order === 'delete first' ? 0.05 : 0
     const finalizeLast = `
 select pg_sleep(${finalizeDelay});
-${asUser(`
-select 'NUMBER=' || number from public.finalize_document('${doc}');
+${readExpected(doc)}${asUser(`
+${finalizeCall(doc)}
 select pg_sleep(0.15);
 commit;
 `)}`
@@ -520,6 +579,41 @@ select count(*) from public.tax_settings t
     check(profiles === 1 && taxRows === 1, `${label}: one profile and one tax_settings row`,
       `profiles: ${profiles}, tax_settings: ${taxRows}`)
   }
+
+  // 7. Right and wrong expected totals at the same instant ------------------------------------
+  console.log(`\n[7] ${EXPECTED_RIGHT} finalizes with the right expected total and ${EXPECTED_WRONG} with a wrong one, at the same instant`)
+  const before = await seriesState()
+  const mixed = await runTogether([
+    ...rightTotalDocs.map((id) => finalizeAndCommit(id)),
+    ...wrongTotalDocs.map((id) => finalizeAndCommit(id, { wrong: true })),
+  ])
+  const rightResults = mixed.results.slice(0, EXPECTED_RIGHT)
+  const wrongResults = mixed.results.slice(EXPECTED_RIGHT)
+  const issuedNumbers = rightResults.map((r) => numberOf(r.stdout)).filter((n) => n !== null).sort((a, b) => a - b)
+  const firstNumber = Number(before.counter) + 1
+  const expectedNumbers = Array.from({ length: EXPECTED_RIGHT }, (_, i) => firstNumber + i)
+  console.log(`      elapsed ${mixed.elapsedMs} ms, peak sessions blocked on a lock: ${mixed.peakLockWaiters}, counter before: ${before.counter}`)
+  check(rightResults.every((r) => r.code === 0) && issuedNumbers.length === EXPECTED_RIGHT,
+    `the ${EXPECTED_RIGHT} calls with the right expected total succeeded`,
+    rightResults.find((r) => r.code !== 0) ? errorOf(rightResults.find((r) => r.code !== 0).stderr) : '')
+  check(wrongResults.every((r) => r.code !== 0 && /DF009/.test(r.stderr) && numberOf(r.stdout) === null),
+    `the ${EXPECTED_WRONG} calls with a wrong expected total were all refused with DF009`,
+    `first error: ${errorOf(wrongResults[0].stderr)}`)
+  check(sameList(issuedNumbers, expectedNumbers),
+    `the issued documents received exactly ${firstNumber}..${firstNumber + EXPECTED_RIGHT - 1}: consecutive, no gap left by a refused call`,
+    `returned: ${issuedNumbers.join(',')}`)
+  const after = await seriesState()
+  check(after.counter === String(Number(before.counter) + EXPECTED_RIGHT),
+    `the counter moved by exactly ${EXPECTED_RIGHT}: the ${EXPECTED_WRONG} refused calls consumed no number`,
+    `counter before: ${before.counter}, after: ${after.counter}`)
+  check(sameList(after.numbers, range(Number(after.counter))), 'the whole series is still 1..counter, with no duplicate and no gap',
+    `stored: ${after.numbers.join(',')}`)
+  const refusedState = await mustRunSql(`
+select count(*) || '/' || count(*) filter (where status = 'draft' and number is null and net_a_payer is null)
+from public.documents where id in (${wrongTotalDocs.map((id) => `'${id}'`).join(', ')});`)
+  check(refusedState === `${EXPECTED_WRONG}/${EXPECTED_WRONG}`, 'every refused document is still a draft, without a number and without totals',
+    `documents / still plain drafts: ${refusedState}`)
+  check(mixed.peakLockWaiters > 0, 'the calls really overlapped (some had to wait for a lock)')
 } catch (error) {
   // A scenario could not run at all (not a failed check): report it and still clean up.
   console.log(`\nABORTED: ${error.message}`)

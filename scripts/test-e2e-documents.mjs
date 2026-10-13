@@ -31,10 +31,15 @@
 //     cannot be deleted by any role otherwise (that is the point of the guard triggers).
 //     Nothing else is touched.
 //   * The quantity, price and rate below are test data, not tax values.
+//   * The expected total sent to finalize_document() is never written in this file: it is
+//     computed like the screen does, by computeTotals() of src/lib/money on the lines read
+//     back through the API. The money module is TypeScript, so this script is started with
+//     Node's own --experimental-strip-types (see package.json), like test-e2e-items.mjs.
 
 import { execSync, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { computeTotals, fromDbNumeric, fromDbQuantity, fromDbRate, toDbNumeric } from '../src/lib/money/money.ts'
 
 const config = readFileSync('supabase/config.toml', 'utf8')
 const projectId = /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1]
@@ -223,7 +228,23 @@ try {
 
   // 6. Once issued ---------------------------------------------------------------------------------
   console.log('\n[6] once issued by the real finalize_document(), the owner can no longer change it')
-  const withoutLines = await api('POST', '/rest/v1/rpc/finalize_document', { token: a.token, body: { p_document_id: draftId } })
+  // What the screen would send: the net à payer of computeTotals() on the lines of the
+  // document, read through the API as text, with the timbre of a facture of an organization
+  // that applies it (this throwaway organization does not).
+  const expectedNetAPayer = async () => {
+    const rows = (await api('GET', `/rest/v1/document_items?select=quantity::text,unit_price::text,tva_rate::text&organization_id=eq.${a.organizationId}&document_id=eq.${draftId}&order=position`, { token: a.token })).json
+    const tax = (await api('GET', `/rest/v1/tax_settings?select=timbre_enabled,timbre_fiscal::text&organization_id=eq.${a.organizationId}`, { token: a.token })).json?.[0]
+    const type = (await api('GET', onePath(a.organizationId, draftId, 'type'), { token: a.token })).json?.[0]?.type
+    const totals = computeTotals({
+      lines: rows.map((row) => ({ quantity: fromDbQuantity(row.quantity), unitPrice: fromDbNumeric(row.unit_price), tvaRate: fromDbRate(row.tva_rate) })),
+      timbre: type === 'facture' && tax?.timbre_enabled && tax.timbre_fiscal !== null ? fromDbNumeric(tax.timbre_fiscal) : null,
+    })
+    return toDbNumeric(totals.netAPayer)
+  }
+  const finalize = (body) => api('POST', '/rest/v1/rpc/finalize_document', { token: a.token, body })
+  const counterRows = () => psql(`select count(*) from public.document_counters where organization_id = '${a.organizationId}';`)
+
+  const withoutLines = await finalize({ p_document_id: draftId, p_expected_net_a_payer: await expectedNetAPayer() })
   check(withoutLines.status === 400 && withoutLines.json?.code === 'DF004', 'finalize refuses a document without lines (DF004)',
     `HTTP ${withoutLines.status}, code ${withoutLines.json?.code}`)
   const item = await api('POST', '/rest/v1/document_items', {
@@ -231,9 +252,32 @@ try {
     body: { organization_id: a.organizationId, document_id: draftId, description: 'Ligne E2E', quantity: '1.000', unit_price: '10.000', tva_rate: '0.000' },
   })
   check(item.status === 201, 'A adds one line to the draft over REST', `HTTP ${item.status}`)
-  const finalized = await api('POST', '/rest/v1/rpc/finalize_document', { token: a.token, body: { p_document_id: draftId } })
+  const expected = await expectedNetAPayer()
+  console.log(`      net à payer computed by computeTotals() on the line read through the API: "${expected}"`)
+
+  // The old call, with one argument: the function no longer exists in that form.
+  const oneArgument = await finalize({ p_document_id: draftId })
+  check(oneArgument.status === 404 && oneArgument.json?.code === 'PGRST202',
+    'a call with ONE argument is refused: no such function (PGRST202)', `HTTP ${oneArgument.status}, code ${oneArgument.json?.code}`)
+  // A wrong expected total: one more decimal digit than Postgres prints. Derived, not typed.
+  const wrongTotal = await finalize({ p_document_id: draftId, p_expected_net_a_payer: `${expected}0` })
+  check(wrongTotal.status === 400 && wrongTotal.json?.code === 'DF009',
+    `a wrong expected total ("${expected}0") is refused with DF009`, `HTTP ${wrongTotal.status}, code ${wrongTotal.json?.code}`)
+  // The same amount as a JSON number: PostgREST passes its text ("10") to the function,
+  // which is not what Postgres prints for the amount ("10.000"). A number never passes.
+  const asNumber = await finalize({ p_document_id: draftId, p_expected_net_a_payer: Number(expected) })
+  check(asNumber.status === 400 && asNumber.json?.code === 'DF009',
+    'the expected total sent as a JSON number instead of text is refused with DF009', `HTTP ${asNumber.status}, code ${asNumber.json?.code}`)
+  const missingTotal = await finalize({ p_document_id: draftId, p_expected_net_a_payer: null })
+  check(missingTotal.status === 400 && missingTotal.json?.code === 'DF009',
+    'a null expected total is refused with DF009', `HTTP ${missingTotal.status}, code ${missingTotal.json?.code}`)
+  check(psql(`select status || '/' || coalesce(number::text, 'null') from public.documents where id = '${draftId}';`) === 'draft/null' && counterRows() === '0',
+    'after the refused calls the document is still a draft without a number, and no counter row exists')
+
+  const finalized = await finalize({ p_document_id: draftId, p_expected_net_a_payer: expected })
   check(finalized.status === 200 && finalized.json?.status === 'sent' && finalized.json?.number === 1,
-    'finalize_document(), called by the owner, issues it: status sent, number 1', `HTTP ${finalized.status}, code ${finalized.json?.code ?? '-'}`)
+    'finalize_document(), called by the owner with the right expected total, issues it: status sent, number 1 (the refused calls left no gap)',
+    `HTTP ${finalized.status}, code ${finalized.json?.code ?? '-'}`)
 
   const issued = await api('GET', onePath(a.organizationId, draftId, DETAIL), { token: a.token })
   check(issued.json?.[0]?.status === 'sent' && issued.json?.[0]?.buyer_name === 'Client E2E' && typeof issued.json?.[0]?.year === 'number',

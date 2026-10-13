@@ -278,8 +278,13 @@ from private.compute_totals(
 
   // 6. Once issued -------------------------------------------------------------------------------
   console.log('\n[6] after the real finalize_document(), A can no longer insert, update or delete lines')
-  const finalized = await api('POST', '/rest/v1/rpc/finalize_document', { token: a.token, body: { p_document_id: documentId } })
-  check(finalized.status === 200 && finalized.json?.status === 'sent', 'finalize_document(), called by the owner, issues the facture', outcome(finalized))
+  // The expected total is the net à payer computeTotals() gave above, as text: exactly what
+  // the screen will send. Postgres refuses to issue unless it computes the same amount.
+  const finalized = await api('POST', '/rest/v1/rpc/finalize_document', {
+    token: a.token, body: { p_document_id: documentId, p_expected_net_a_payer: typescript.netAPayer },
+  })
+  check(finalized.status === 200 && finalized.json?.status === 'sent',
+    `finalize_document(), called by the owner with the net à payer of computeTotals() ("${typescript.netAPayer}"), issues the facture`, outcome(finalized))
   // The totals stored at issue, read as the frontend will read them: as text.
   const storedTotals = await api('GET',
     `/rest/v1/documents?select=total_ht::text,total_tva::text,total_ttc::text,timbre_fiscal::text,net_a_payer::text,tva_breakdown&organization_id=eq.${a.organizationId}&id=eq.${documentId}`,
