@@ -28,6 +28,10 @@
 //      the same instant on the same series: every wrong one is refused with DF009 and stays
 //      a draft, the right ones receive consecutive numbers, and the counter moved by exactly
 //      the number of documents issued (a refused call consumes no number, leaves no gap).
+//   8. While one connection holds the counter of the series (a finalize not yet committed),
+//      a finalize with a wrong expected total on ANOTHER draft is refused with DF009 at
+//      once: the totals are checked before the counter is touched, so a refused call does
+//      not even wait for the counter.
 //
 // The expected total. finalize_document(id, expected) refuses to issue unless `expected`
 // is the net à payer it computes itself. Every call below sends the amount computed from
@@ -124,7 +128,10 @@ const itemRaceDoc = randomUUID()
 const deleteRaceDocs = Array.from({ length: DELETE_RACE_ROUNDS }, () => randomUUID())
 const rightTotalDocs = Array.from({ length: EXPECTED_RIGHT }, () => randomUUID())
 const wrongTotalDocs = Array.from({ length: EXPECTED_WRONG }, () => randomUUID())
-const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs, ...rightTotalDocs, ...wrongTotalDocs]
+const counterHolderDoc = randomUUID()
+const refusedWhileHeldDoc = randomUUID()
+const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs, ...rightTotalDocs, ...wrongTotalDocs,
+  counterHolderDoc, refusedWhileHeldDoc]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
 const gunKey = 700000000 + Math.floor(Math.random() * 1000000)
 // Created by the signup trigger; read back after the signup.
@@ -614,6 +621,38 @@ from public.documents where id in (${wrongTotalDocs.map((id) => `'${id}'`).join(
   check(refusedState === `${EXPECTED_WRONG}/${EXPECTED_WRONG}`, 'every refused document is still a draft, without a number and without totals',
     `documents / still plain drafts: ${refusedState}`)
   check(mixed.peakLockWaiters > 0, 'the calls really overlapped (some had to wait for a lock)')
+
+  // 8. A refused call does not wait for the counter ------------------------------------------
+  // The holder finalizes and keeps its transaction open 1.5 s: the counter row of the series
+  // is locked all that time. 300 ms later the other connection calls finalize on another
+  // draft with a wrong expected total, and gives up on any lock after 400 ms.
+  console.log('\n[8] a finalize with a wrong expected total, while another connection holds the counter of the series')
+  const holder = `${readExpected(counterHolderDoc)}${asUser(`
+${finalizeCall(counterHolderDoc)}
+select pg_sleep(1.5);
+commit;
+`)}`
+  const refusedWhileHeld = `
+select pg_sleep(0.3);
+${readExpected(refusedWhileHeldDoc)}${asUser(`
+set local lock_timeout = '400ms';
+select 'HELD=' || count(*) from pg_locks l join pg_class c on c.oid = l.relation
+  where c.relname = 'document_counters' and l.mode = 'RowExclusiveLock' and l.pid <> pg_backend_pid();
+${finalizeCall(refusedWhileHeldDoc, { wrong: true })}
+commit;
+`)}`
+  const { results: [holderResult, refusedResult] } = await runTogether([holder, refusedWhileHeld])
+  check(holderResult.code === 0 && numberOf(holderResult.stdout) !== null, 'the holder issued its document',
+    holderResult.code === 0 ? `number ${numberOf(holderResult.stdout)}` : errorOf(holderResult.stderr))
+  check(/^HELD=[1-9]/m.test(refusedResult.stdout), 'the other call really started while the holder had the counter table in use',
+    refusedResult.stdout.trim().split('\n').pop())
+  check(refusedResult.code !== 0 && /DF009/.test(refusedResult.stderr) && !/55P03|lock timeout/.test(refusedResult.stderr),
+    'it was refused with DF009 at once, without waiting for the counter (no lock timeout)',
+    `error: ${errorOf(refusedResult.stderr)}`)
+  const lastState = await seriesState()
+  check(sameList(lastState.numbers, range(Number(lastState.counter))) && Number(lastState.counter) === Number(after.counter) + 1,
+    'the series is still 1..counter and only the holder consumed a number',
+    `counter before: ${after.counter}, after: ${lastState.counter}`)
 } catch (error) {
   // A scenario could not run at all (not a failed check): report it and still clean up.
   console.log(`\nABORTED: ${error.message}`)
