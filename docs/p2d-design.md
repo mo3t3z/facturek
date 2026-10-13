@@ -497,3 +497,45 @@ second argument and check stored totals.
   trace whether an amount is set at that point. To check first in P2d2.
 - The generated types were read only around `finalize_document`.
 - Accounting rules: none verified; they are the accountant's.
+
+---
+
+## Decisions (approved 2026-10-13)
+
+The design above is approved with the following decisions. Where a decision differs from
+the text above, the decision wins.
+
+- **I-1** The user confirms **Net à payer**.
+- **I-2** The zero refusal is on `total_ttc`. TODO(accountant): is a free facture legitimate?
+- **I-3** No per-line stored totals.
+- **I-4** DF023 (a total exceeds `numeric(12,3)`) is added.
+- **I-5** DF007 is kept, not renumbered.
+- **I-6** Length limits on the other free-text columns go into a separate small checkpoint
+  later. Proposal for that checkpoint: notes 2000, names 200, addresses 500.
+- **I-7 to I-11** As recommended.
+- **I-12** Every hand-written vector that is edited is listed, old and new values, in the
+  report BEFORE anything is regenerated.
+- **I-13** Every accounting rule stays TODO(accountant).
+- **I-14 (new)** `finalize_document` does NOT yet require `seller_matricule_fiscal` or
+  `seller_address` (today it only requires `seller_name`). A facture without the seller's
+  matricule fiscal may not be legally valid. TODO(accountant). Nothing is refused for now;
+  the confirmation screen of P2d3 warns when a seller field is missing.
+- **Column semantics** (section D): `total_ht`, `total_tva`, `total_ttc` = HT + TVA (never
+  the timbre), `timbre_fiscal` (existing), `net_a_payer` = `total_ttc +
+  coalesce(timbre_fiscal, 0)`, `tva_breakdown` jsonb with text amounts.
+- **Trigger function**: SECURITY DEFINER, `search_path = ''`, fully qualified names,
+  REVOKEd from `public`, `anon`, `authenticated`, `service_role`.
+- **Changing the meaning of `totalTTC` in TypeScript is a silent change**: every use is
+  found with grep and listed before any is changed.
+
+### Split of P2d2
+
+`documents_devis_has_no_timbre` contradicts the current `finalize_document`, which
+snapshots the timbre on a devis. The body fix therefore ships in the same step as the
+CHECK, and each part ends green.
+
+- **P2d2a**: migrations 1 to 5 of section H (the two CHECKs, `compute_totals`, the columns,
+  the trigger), plus the body fix of `finalize_document` with the SAME signature (timbre
+  on factures only), `money.ts`, the vectors, the scripts, and the five-row preview.
+- **P2d2b**: `finalize_document(uuid, text)`, DF009 / DF022 / DF023 and their tests.
+- **P2d3**: the issue button, its confirmation, and the read-only issued view.
