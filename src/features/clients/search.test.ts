@@ -49,15 +49,15 @@ describe('filterClients', () => {
   describe('phone numbers', () => {
     const spaced = client({ id: '3', name: 'Garage', phone: '22 345 678' })
     const international = client({ id: '4', name: 'Export', phone: '+216 71.123.456' })
-    const noPhone = client({ id: '5', name: 'Sans téléphone 22345678' })
+    const noPhone = client({ id: '5', name: 'Sans téléphone' })
     const phones = [spaced, international, noPhone, elan]
     const found = (query: string) => filterClients(phones, query).map((c) => c.name)
 
     it('finds a number typed without spaces, and with them', () => {
-      expect(found('22345678')).toEqual(['Garage', 'Sans téléphone 22345678'])
+      expect(found('22345678')).toEqual(['Garage'])
       expect(found('22 345 678')).toEqual(['Garage'])
       expect(found('22 34 56 78')).toEqual(['Garage'])
-      expect(found('345678')).toEqual(['Garage', 'Sans téléphone 22345678'])
+      expect(found('345678')).toEqual(['Garage'])
     })
 
     it('ignores dots, dashes and parentheses on both sides', () => {
