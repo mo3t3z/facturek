@@ -481,6 +481,30 @@ describe('totals preview', () => {
     expect(region).not.toHaveTextContent(/en cours de saisie/)
   })
 
+  it.each(['facture', 'devis'])('still shows the totals of a %s, without a timbre, when the organization has no tax_settings row', async (type) => {
+    document = { ...document, type }
+    tax = null
+    open()
+    const region = await preview()
+    const rows = within(region).getAllByRole('row').map((row) => row.textContent)
+    expect(rows).toEqual(['TauxBase HTTVA', '7 %5,000 TND0,350 TND', '19 %20,000 TND3,800 TND'])
+    expect(total(region, 'Total HT')).toHaveTextContent('25,000 TND')
+    expect(total(region, 'Total TVA')).toHaveTextContent('4,150 TND')
+    expect(total(region, 'Total TTC')).toHaveTextContent('29,150 TND')
+    expect(within(region).queryByText('Timbre fiscal')).not.toBeInTheDocument()
+    expect(region).not.toHaveTextContent(/timbre fiscal est activé/)
+    // No default rate either: the field is empty and required.
+    const form = await addForm()
+    const rate = field(form, 'Taux de TVA (%)')
+    expect(rate).toHaveValue('')
+    expect(rate).toHaveAccessibleDescription(/Aucun taux par défaut n'est défini dans les paramètres/)
+    await fill(form, { description: 'Sans paramètres', quantity: '1', price: '10' })
+    await user.click(within(form).getByRole('button', { name: 'Ajouter la ligne' }))
+    expect(rate).toBeInvalid()
+    expect(rate).toHaveAccessibleDescription(/Indiquez le taux de TVA de cette ligne/)
+    expect(itemCalls('insert')).toEqual([])
+  })
+
   it('shows zeros for a draft without lines', async () => {
     lines = []
     tax = { ...tax, timbre_enabled: false }

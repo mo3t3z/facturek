@@ -5,7 +5,7 @@ import { Alert } from '../../../components/FormControls'
 import { dangerButton, primaryButton, secondaryButton } from '../../../components/styles'
 import { errorMessageKey } from '../../../lib/errors'
 import { formatMillimes, formatQuantity, formatRate, toDbNumeric } from '../../../lib/money/money'
-import { getTaxSettings, taxSettingsKey } from '../../settings/api'
+import { getTaxSettings, type TaxSettings, taxSettingsKey } from '../../settings/api'
 import { ITEM_WRITE_ERRORS } from '../format'
 import { createItem, deleteItem, type DocumentItem, ITEMS_LIMIT, itemsKey, listItems, updateItem } from '../itemsApi'
 import { type ItemInput, type ItemValues, readItem } from '../itemSchema'
@@ -23,6 +23,10 @@ type ItemsEditorProps = {
 }
 
 const NO_PENDING: PendingLine = { state: 'none' }
+
+// An organization without a tax_settings row applies nothing: no default rate, no timbre.
+// finalize_document() reads a missing row the same way.
+const NO_TAX_SETTINGS: TaxSettings = { defaultTvaRate: null, timbreEnabled: false, timbreFiscal: null }
 
 /** Stored values shown the way a user would type them (comma, no grouping). */
 const asTyped = (item: DocumentItem): ItemInput => ({
@@ -112,7 +116,8 @@ export function ItemsEditor({ organizationId, documentId, documentType, editable
   }
 
   const amount = (value: Parameters<typeof formatMillimes>[0]) => t('money.amount', { value: formatMillimes(value) })
-  const defaultRate = tax.data?.defaultTvaRate ?? null
+  const settings = tax.data ?? NO_TAX_SETTINGS
+  const defaultRate = settings.defaultTvaRate
   // A new line goes after the last one. Lines are sorted by position, so the last is the highest.
   const nextPosition = (saved: readonly DocumentItem[]) => (saved.at(-1)?.position ?? -1) + 1
 
@@ -263,10 +268,10 @@ export function ItemsEditor({ organizationId, documentId, documentType, editable
             </div>
           )}
 
-          {editable && tax.isSuccess && tax.data !== null && (
+          {editable && tax.isSuccess && (
             <TotalsPreview
-              totals={previewTotals(previewLines(items.data, pending), previewTimbre(documentType, tax.data))}
-              timbre={previewTimbre(documentType, tax.data)}
+              totals={previewTotals(previewLines(items.data, pending), previewTimbre(documentType, settings))}
+              timbre={previewTimbre(documentType, settings)}
               pending={pending.state}
             />
           )}
