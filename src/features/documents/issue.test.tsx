@@ -507,6 +507,15 @@ describe('refusals of finalize_document', () => {
     },
   )
 
+  it('a refusal disappears once the user edits the header: it described the draft as it was', async () => {
+    finalize = () => failed(dbError('DF006'))
+    const { region, group } = await openConfirmation()
+    await user.click(within(group).getByRole('button', { name: "Confirmer l'émission" }))
+    expect(await within(region).findByRole('alert')).toHaveTextContent(french('DF006') as string)
+    await user.type(screen.getByLabelText('Notes'), 'Corrigé')
+    await waitFor(() => expect(within(region).queryByRole('alert')).not.toBeInTheDocument())
+  })
+
   it.each(['DF001', 'PGRST116'])('%s from the function: says the document cannot be found', async (code) => {
     finalize = () => failed(dbError(code))
     const { region, group } = await openConfirmation()

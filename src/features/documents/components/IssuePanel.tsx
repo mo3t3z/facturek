@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, TextLink } from '../../../components/FormControls'
 import { primaryButton, secondaryButton } from '../../../components/styles'
@@ -118,6 +118,14 @@ export function IssuePanel(props: IssuePanelProps) {
       sending.current = false
     },
   })
+
+  // The refusal of the last attempt describes the draft as it was then. Once the user edits
+  // the header or a line it may no longer be true (a date fixed after DF006), so it goes.
+  const resetIssue = issue.reset
+  const editing = props.headerDirty || props.lineFormBusy
+  useEffect(() => {
+    if (editing) resetIssue()
+  }, [editing, resetIssue])
 
   // Why the document cannot be issued yet, in the order the user would fix them.
   const reasons: string[] = []
