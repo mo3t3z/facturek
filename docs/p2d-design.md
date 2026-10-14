@@ -1,5 +1,10 @@
 # P2d design: stored totals, finalize v2, timbre rules (P2d1, design only)
 
+> **P2d is finished and merged** (P2d2a `3351c16`, P2d2b `b901dd2`, P2d3 at `2e83915`).
+> Part 1 describes the database as it was BEFORE P2d; Part 2 is the design; the decisions
+> and the "Notes added while building" sections at the end say what was really built.
+> For the current status of the project see `docs/STATUS.md`.
+
 Written 2026-10-13 on `checkpoint/p2d1-design` from `main` (`d664661`). Nothing here is
 built: no migration, no SQL file, no application code. Every tax rule below is
 **TODO(accountant)** until the accountant confirms it.
@@ -589,3 +594,19 @@ They are checked in that order, after DF007 and before the counter is touched.
   document again with its amounts as text.
 - A devis shows four rows of totals (no "Droit de timbre"), in the confirmation and in the
   issued view, like in the preview.
+- **A bug found by the manual checks, fixed in `78a6461`.** With the confirmation open in
+  one tab, lines were added in another. When the first tab got the focus back it reloaded
+  the lines, the open confirmation changed its amounts in place (from 59,500 to the new
+  total), and a click on "Confirmer" issued a devis for 190,400 that had not been read,
+  with no message. The confirmation is now bound to the totals it was opened with: it
+  closes and says nothing was issued if they change behind it, and the amount sent is the
+  one it displays. The rule is in `CLAUDE.md` (Frontend).
+- **Manual checks done on 2026-10-14**, on the p2c3 test account, read as page text only
+  (the browser pane was hidden: no layout was seen, no screenshot taken): the issue button
+  and its reasons; the confirmation with its totals, seller warnings and focus on
+  "Annuler"; cancelling; issuing for real (Facture 2026-0001); a double click (one
+  request, Facture 2026-0002 only); the issued view; the net à payer in the list; the
+  two-tab case, which failed, was fixed, and then answered DF009 with the document still a
+  draft; an issued document opened by its URL; the live preview; invalid values; the
+  timbre row on a facture and its absence on a devis; a devis draft of an organization
+  without a tax settings row. What is still pending is listed in `docs/STATUS.md`.

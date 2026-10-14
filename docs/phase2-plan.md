@@ -1,5 +1,38 @@
 # Phase 2 plan (approved 2026-10-13)
 
+> **Historical plan, approved 2026-10-13. For current status see `docs/STATUS.md`.**
+> The text below is kept as it was approved, except for the note that follows and one
+> correction marked in the P2e decisions. P2a to P2d are finished and merged.
+
+## Where P2d departed from this plan
+
+The design that was actually built is `docs/p2d-design.md`. Differences from the text below:
+
+- **Decision 9, parameter name.** The plan says `p_expected_total_ttc`. The function is
+  `finalize_document(p_document_id uuid, p_expected_net_a_payer text)`: the user confirms
+  the net à payer, not the total TTC.
+- **No generated `line_total_ht` column** (migration 1 below). Per-line totals are not
+  stored; the issued view derives them, every other amount is a stored column.
+- **`total_ttc` versus `net_a_payer`.** The plan has `total_ttc = total_ht + total_tva +
+  coalesce(timbre_fiscal, 0)`. What exists: `total_ttc = total_ht + total_tva` (never the
+  timbre) and a separate `net_a_payer = total_ttc + coalesce(timbre_fiscal, 0)`.
+- **`scripts/test-totals-parity.mjs` was never created** (folder structure below). Parity
+  is proved by `npm run money:vectors` and `npm run test:e2e-items`, which both call
+  `private.compute_totals()`, the function that writes the stored totals.
+- **The totals trigger also fires on INSERT** and forces NULL totals on a draft; the plan
+  only described a `BEFORE UPDATE` trigger.
+- **Codes.** The three codes the plan left unnumbered are DF009 (expected total differs),
+  DF022 (total is zero) and DF023 (total exceeds the maximum, not in the plan).
+- **"TODOs recorded after P2c3", section P2d: all done** (CHECK on `tax_settings`, length
+  CHECK on the line description, no timbre on a devis, names of the stored totals). The
+  review of the OTHER free-text columns is still open: see `docs/STATUS.md`.
+- **"Possible UX bug, to reproduce first": fixed** in `d664661` (the `DecimalField`
+  feedback line is reserved, so a click on submit is not lost).
+- **"Test data left in the local database" is outdated.** The current accounts are listed
+  in `docs/STATUS.md`.
+- **Tests.** `008_totals.test.sql` exists; `009_payments_status` and `010_conversion`
+  belong to P2e and P2f and do not exist yet. `src/features/payments/` does not exist yet.
+
 Scope: clients UI, then documents (devis / facture) UI, then totals, payments and status.
 One checkpoint = one branch from `main`, reviewed and approved before the next one starts.
 
@@ -35,6 +68,7 @@ No new devDependency without asking first.
 2. **Retenue à la source**: out of Phase 2. The snapshot columns stay.
    TODO: a facture on which the client withholds the retenue cannot reach `paid`, because
    its payments never cover `total_ttc`.
+   *(Corrected 2026-10-14: read `net_a_payer`, see the note after decision 6.)*
 3. **Timbre**: factures only. `finalize_document` stops snapshotting it on a devis (new
    migration, `CREATE OR REPLACE`, existing tests stay green).
 4. **Overpayment** is refused (DF018).
@@ -42,6 +76,12 @@ No new devDependency without asking first.
    `guard_documents` (DF019: `sent -> paid` only when payments cover the total).
 6. **`paid_at`**: not in the future (Africa/Tunis date) and not before the issue date.
    TODO(accountant).
+
+   > **Correction for P2e (2026-10-14).** Payments are compared with `net_a_payer`, NOT
+   > with `total_ttc`. Since P2d, `total_ttc` is HT + TVA without the timbre, and
+   > `net_a_payer` is what the client owes. Everywhere decisions 2, 4 and 5 and migrations
+   > 4 and 5 below say "the total" or `total_ttc` for a payment (overpayment DF018, paid
+   > coverage DF019, automatic `paid` in `record_payment`), read `net_a_payer`.
 7. **Roles**: any organization member may finalize, record payments and cancel a devis.
    Revisit with the invitation flow.
 8. **Out of scope**: discounts (remise), FODEC, PDF / print, matricule fiscal format

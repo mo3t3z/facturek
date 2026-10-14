@@ -189,54 +189,19 @@ introduced.
   database. Never edit it by hand; regenerate it after every migration. It is excluded
   from ESLint. (Prettier is not installed; if it is added, ignore this file there too.)
 
-### TODO (later phases, not started)
-- P2d (design and decisions in `docs/p2d-design.md`). Done in P2d2a: the two CHECKs, the
-  stored totals and their trigger, `private.compute_totals()`, timbre on factures only.
-  Done in P2d2b: `finalize_document(uuid, text)`, DF009 / DF022 / DF023, and the plumbing
-  `finalizeDocument()` / `finalizePayload()`.
-  Done in P2d3: "Émettre" with its confirmation on a draft, the read-only issued view, the
-  net à payer in the list. Not checked by hand in a browser beyond the draft page and the
-  confirmation: issuing for real, the issued view and the error messages.
-  - No PDF, no print, no download, no payment screen yet.
-  - TODO(accountant): the number format shown (`2026-0001`).
-  - A document issued by hand by a privileged role (not through `finalize_document`) whose
-    totals do not fit `numeric(12,3)` still fails with a raw `22003` from the trigger.
-  - A full replay of the migrations from an empty database (`db:reset`) has not been run
-    since P2d2a; it wipes the local data and needs the developer's explicit consent.
-  - TODO(accountant): `finalize_document()` requires `seller_name` only. A facture without
-    the seller's matricule fiscal or address may not be legally valid. Nothing is refused
-    for now; the confirmation screen of P2d3 must WARN when a seller field is missing.
-  - TODO(accountant): is a facture with a total of zero ever legitimate (P2d2b refuses it)?
-  - Separate small checkpoint: length CHECKs on the other free-text columns (proposal:
-    notes 2000, names 200, addresses 500); none has a limit in the database today.
-  - Reserved codes: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis that has a
-    converted facture.
-- Later: avoir (credit note) type; TTN fields (`ttn_reference`, `ttn_status`, signed XML)
-  as columns writable after issue, excluded from what `guard_documents` freezes; TEIF
-  export as a separate module. The external facts (El Fatoora from 2026, TTN portal,
-  TunTrust certificates) are unverified, pending the accountant and TTN.
-- Possible UX bug, not reproduced yet: the `DecimalField` reading appearing on blur may
-  shift the layout and swallow the first click on the submit button. Reproduce before
-  changing anything.
-- Before the invitation flow exists, the e2e/concurrency scripts must record the
-  organization ids they create and delete only those (today they find organizations
-  through memberships).
-- Invitation flow: tokens, accepted by the invited user, membership created by a
-  SECURITY DEFINER function. Until then an organization has only its signup owner.
-- Payment corrections: payments cannot be updated or deleted by any role (DF017). A
-  mistake must be corrected with a reversal entry (design and build later).
-- Credit notes (avoirs): the only way to correct or cancel a numbered facture. Until
-  they exist a numbered facture cannot be cancelled at all.
-- Status changes after `sent` have no API path yet (the API role cannot write `status`).
-  Phase 2: `sent -> paid` for a facture and cancelling a devis need SECURITY DEFINER
-  functions, tied to the document totals and the sum of its payments (a facture is
-  "paid" when its payments cover its total, not when someone says so).
-- A devis can currently be converted into several factures (`converted_from` has no
-  uniqueness rule). Decide in phase 2 whether that is wanted.
-- Have an accountant check the status transition map and the two date rules of
-  `finalize_document()`.
-- Ownership transfer and account deletion: today the last owner cannot leave or be
-  deleted (the DF020 trigger also blocks the `auth.users` cascade).
+### Status and remaining work
+- `docs/STATUS.md` is the one place that says where the project is: done checkpoints,
+  remaining checkpoints in order, the test inventory with real counts, the open
+  TODO(accountant) and TTN questions, known risks and accepted limits, manual checks still
+  pending, and the local test accounts. This file (`CLAUDE.md`) holds the RULES only.
+- `docs/STATUS.md` is updated in every checkpoint, before the merge into `main`. Test
+  counts written there come from running the command, never from reading the source.
+- P2d (stored totals, `finalize_document(uuid, text)`, issuing from the screen, issued
+  view) is finished and merged. It was checked in a browser on 2026-10-14 as page text
+  only: the layout has never been seen.
+- Codes reserved for P2e: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis
+  that has a converted facture.
+- `docs/phase2-plan.md` is the historical plan; `docs/p2d-design.md` is the P2d design.
 
 ### Auth and the browser (SPA trade-offs)
 - Email links go to OUR page: `/auth/confirm?token_hash=...&type=email|recovery` (templates
@@ -340,4 +305,5 @@ introduced.
   being merged. Run them right before the merge, and stop if one fails: `main` must never
   be red, even for one commit. Merges are `--ff-only`.
 - Build only the current phase. Do not start the next phase without approval.
+- Update `docs/STATUS.md` in every checkpoint, before the merge into `main`.
 - The developer is a junior: explain key decisions briefly (why, trade-offs).
