@@ -90,7 +90,10 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - The timbre fiscal is charged on factures only: `finalize_document()` snapshots it only
   for a facture, and a CHECK forbids it on a devis for every role. An organization cannot
   enable the timbre without an amount (CHECK on `tax_settings`).
-- `document_items.description` is at most 500 characters (CHECK), like the screen.
+- Every free-text column has a length CHECK equal to the `.max()` of its Zod schema: names
+  200, matricule fiscal 50, addresses 500, e-mail 254, phone 30, notes 2000, line description
+  500, profile name 100; the snapshot columns take the limit of their source column. A new
+  free-text column gets both, and `009_text_lengths.test.sql` lists them all.
 - Money, quantities and rates are read from PostgREST as text (`total_ttc::text`) and
   parsed with `fromDbNumeric` / `fromDbQuantity` / `fromDbRate`; they are sent back with
   `toDbNumeric`. A JSON number would be a float.
