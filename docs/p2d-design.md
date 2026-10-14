@@ -575,3 +575,17 @@ They are checked in that order, after DF007 and before the counter is touched.
   user would. That is the intended behaviour of the check, observed under real contention.
 - `finalizeDocument()` makes two requests: the explicit organization filter first (the RPC
   takes no organization, and supabase-js does not type a filter on its result), then the RPC.
+
+### Notes added while building P2d3
+
+- The Paramètres page already lets the owner edit the organization's matricule fiscal and
+  address (`organizations.matricule_fiscal`, `organizations.address`, both nullable text,
+  no CHECK). Nothing had to be built for the seller warnings: they link to `/app/settings`.
+- One blocking reason was added to the list of the brief: the HEADER form has unsaved
+  changes. Without it a user could pick another client in the form, not save, and issue
+  the document for the previous client. Two more are shown before Postgres would refuse:
+  a total of zero (DF022) and a total too large (DF023).
+- `finalizeDocument()` returns only id, number and year; the issued view then reads the
+  document again with its amounts as text.
+- A devis shows four rows of totals (no "Droit de timbre"), in the confirmation and in the
+  issued view, like in the preview.

@@ -193,10 +193,12 @@ introduced.
 - P2d (design and decisions in `docs/p2d-design.md`). Done in P2d2a: the two CHECKs, the
   stored totals and their trigger, `private.compute_totals()`, timbre on factures only.
   Done in P2d2b: `finalize_document(uuid, text)`, DF009 / DF022 / DF023, and the plumbing
-  `finalizeDocument()` / `finalizePayload()` (no screen uses them yet).
-  - P2d3: the issue button with its confirmation, and the read-only issued view. The
-    button must be disabled while a line form holds unsaved input: the preview counts the
-    pending line, Postgres does not, and the user would get a DF009 they cannot understand.
+  `finalizeDocument()` / `finalizePayload()`.
+  Done in P2d3: "Émettre" with its confirmation on a draft, the read-only issued view, the
+  net à payer in the list. Not checked by hand in a browser beyond the draft page and the
+  confirmation: issuing for real, the issued view and the error messages.
+  - No PDF, no print, no download, no payment screen yet.
+  - TODO(accountant): the number format shown (`2026-0001`).
   - A document issued by hand by a privileged role (not through `finalize_document`) whose
     totals do not fit `numeric(12,3)` still fails with a raw `22003` from the trigger.
   - A full replay of the migrations from an empty database (`db:reset`) has not been run
@@ -293,7 +295,24 @@ introduced.
   Rows, in this order: Total HT, TVA, Total TTC, Droit de timbre (only when one applies:
   a facture of an organization that charges it), Net à payer.
   No `parseFloat` / `Number(` / `toFixed` / `Math.round` in `src/features/documents`.
-  The stored totals of an issued document are not displayed yet (P2d3).
+- Issuing (`IssuePanel`, under the preview of a draft): nothing is sent before an inline
+  confirmation that shows the totals of the SAVED lines and lands on "Annuler". The
+  expected total is `netAPayer` of `computeTotals()` on the saved lines and the current
+  tax settings, never a line still being typed (`issueInputs.test.tsx`). The button is
+  disabled, with the reasons listed next to it, when the saved draft has no client or no
+  line, when the header or a line form holds unsaved input, when the tax settings are
+  missing or the timbre has no amount, or when the total is zero or too large. That is a
+  convenience: Postgres re-checks everything. DF009 reloads the lines and the settings and
+  asks the user to check the new total; DF002 reloads the document.
+- An issued document (`IssuedDocument`) is shown ONLY from its stored columns: number,
+  dates, seller and buyer snapshots, lines, notes, and the stored totals read by
+  `readStoredTotals()` (`storedTotals.ts`), a strict reader: every amount must be text with
+  3 decimals and every value of `tva_breakdown` a string, otherwise the screen says the
+  totals are unreadable and shows no amount. Totals are NEVER recomputed from the lines of
+  an issued document (`sourceRules.test.ts` refuses `computeTotals` there). The line
+  totals of the read-only list are the one derived value (decision I-3).
+- `TotalsTable` is the one component that lays out totals (preview, confirmation, issued
+  view): same rows, same order, same labels.
 - Screens that need the organization are routed under `<RequireOrganization>` and read it
   with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
 - Text typed by the user never goes into a PostgREST filter string (the clients search
