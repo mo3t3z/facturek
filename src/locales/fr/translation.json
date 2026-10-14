@@ -273,7 +273,7 @@
       "status": "Statut",
       "issueDate": "Date d'émission",
       "dueDate": "Échéance",
-      "total": "Total TTC",
+      "total": "Net à payer",
       "noValue": "—"
     },
     "open": "Ouvrir",
@@ -319,9 +319,16 @@
     },
     "issued": {
       "notice": "Ce document a été émis : il ne peut plus être modifié.",
+      "type": "Type",
+      "seller": "Vendeur",
       "buyer": "Client",
-      "buyerMatricule": "Matricule fiscal",
-      "buyerAddress": "Adresse"
+      "name": "Nom",
+      "matricule": "Matricule fiscal",
+      "address": "Adresse",
+      "notes": "Notes",
+      "totalsTitle": "Totaux",
+      "totalsError": "Les totaux enregistrés sur ce document sont illisibles : aucun montant n'est affiché. Contactez le support.",
+      "retenueNote": "Le net à payer s'entend avant toute retenue à la source. À vérifier avec votre comptable."
     },
     "validation": {
       "typeRequired": "Choisissez le type de document.",
@@ -385,17 +392,59 @@
       "pendingIncluded": "La ligne en cours de saisie est comptée dans l'aperçu, mais elle n'est pas encore enregistrée.",
       "pendingIgnored": "La ligne en cours de saisie est incomplète ou invalide : elle n'est pas comptée dans l'aperçu.",
       "overflow": "Les montants dépassent la valeur maximale possible : l'aperçu ne peut pas être calculé.",
+      "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres : il n'est pas compté ici, et la facture ne pourra pas être émise.",
+      "settingsError": "Les paramètres de taxes n'ont pas pu être chargés : l'aperçu et le taux par défaut ne sont pas disponibles."
+    },
+    "totals": {
       "byRate": "TVA par taux",
       "rate": "Taux",
       "base": "Base HT",
       "tva": "TVA",
       "totalHT": "Total HT",
       "totalTVA": "TVA",
-      "timbre": "Droit de timbre",
-      "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres : il n'est pas compté ici, et la facture ne pourra pas être émise.",
       "totalTTC": "Total TTC",
-      "netAPayer": "Net à payer",
-      "settingsError": "Les paramètres de taxes n'ont pas pu être chargés : l'aperçu et le taux par défaut ne sont pas disponibles."
+      "timbre": "Droit de timbre",
+      "netAPayer": "Net à payer"
+    },
+    "issue": {
+      "title": "Émission",
+      "intro": "L'émission attribue au document son numéro définitif et le fige.",
+      "button": {
+        "devis": "Émettre le devis",
+        "facture": "Émettre la facture"
+      },
+      "blockedTitle": "Ce document ne peut pas encore être émis :",
+      "blocked": {
+        "noClient": "Aucun client n'est enregistré sur ce document.",
+        "noLines": "Le document n'a aucune ligne enregistrée.",
+        "header": "L'en-tête contient des modifications non enregistrées : enregistrez le brouillon.",
+        "lineForm": "Une ligne est en cours de saisie : enregistrez-la ou videz le formulaire.",
+        "taxLoading": "Chargement des paramètres de taxes…",
+        "taxError": "Les paramètres de taxes n'ont pas pu être chargés.",
+        "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres.",
+        "overflow": "Les montants dépassent la valeur maximale possible.",
+        "zeroTotal": "Le total du document est nul."
+      },
+      "question": {
+        "devis": "Émettre ce devis ?",
+        "facture": "Émettre cette facture ?"
+      },
+      "consequence": "Une fois émis, le document reçoit son numéro définitif. Il ne pourra plus être modifié ni supprimé.",
+      "totalsTitle": "Totaux des lignes enregistrées",
+      "warnings": {
+        "sellerMatricule": "Le matricule fiscal de votre entreprise n'est pas renseigné : il ne figurera pas sur ce document.",
+        "sellerAddress": "L'adresse de votre entreprise n'est pas renseignée : elle ne figurera pas sur ce document.",
+        "accountant": "Vérifiez avec votre comptable si ces mentions sont obligatoires.",
+        "settingsLink": "Compléter dans les paramètres"
+      },
+      "confirm": "Confirmer l'émission",
+      "confirming": "Émission…",
+      "cancel": "Annuler",
+      "errors": {
+        "totalsChanged": "Rien n'a été émis : les totaux de ce document ont changé depuis leur affichage. Les lignes et les paramètres viennent d'être rechargés : vérifiez le nouveau total, puis émettez à nouveau.",
+        "alreadyIssued": "Ce document a déjà été émis. Son état vient d'être rechargé.",
+        "missing": "Ce document est introuvable. Il a peut-être été supprimé."
+      }
     }
   }
 }

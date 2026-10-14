@@ -97,7 +97,9 @@ beforeEach(() => {
   api.calls.length = 0
   document = {
     id: DOC, type: 'facture', number: null, year: null, status: 'draft', client_id: CLIENT, issue_date: null, due_date: null,
-    notes: null, buyer_name: null, buyer_matricule_fiscal: null, buyer_address: null,
+    notes: null, seller_name: null, seller_matricule_fiscal: null, seller_address: null,
+    buyer_name: null, buyer_matricule_fiscal: null, buyer_address: null,
+    total_ht: null, total_tva: null, total_ttc: null, timbre_fiscal: null, net_a_payer: null, tva_breakdown: null,
   }
   lines = [lineA, lineB]
   tax = { organization_id: 'org-1', default_tva_rate: '19.000', timbre_enabled: true, timbre_fiscal: '1.000' }
@@ -550,7 +552,11 @@ describe('totals preview', () => {
 
 describe('lines of a document that is no longer a draft', () => {
   beforeEach(() => {
-    document = { ...document, status: 'sent', number: 7, year: 2026, issue_date: '2026-10-13', buyer_name: 'Société Élan' }
+    document = {
+      ...document, status: 'sent', number: 7, year: 2026, issue_date: '2026-10-13', seller_name: 'Atelier Amel', buyer_name: 'Société Élan',
+      total_ht: '25.000', total_tva: '4.150', total_ttc: '29.150', timbre_fiscal: '1.000', net_a_payer: '30.150',
+      tva_breakdown: [{ rate: '7.000', base: '5.000', tva: '0.350' }, { rate: '19.000', base: '20.000', tva: '3.800' }],
+    }
   })
 
   it('are shown read-only: no form, no button, no preview', async () => {
@@ -560,9 +566,10 @@ describe('lines of a document that is no longer a draft', () => {
     expect(within(screen.getByText('Câble').closest('li') as HTMLElement).getByText('Total HT').nextElementSibling).toHaveTextContent('5,000 TND')
     expect(screen.queryByRole('form')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Modifier|Supprimer|Ajouter|Enregistrer/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /^Totaux/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Modifier|Supprimer|Ajouter|Enregistrer|Émettre/ })).not.toBeInTheDocument()
+    // No preview and no issue panel: the only totals are the stored ones (issue.test.tsx).
     expect(screen.queryByText('Aperçu, non enregistré')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Émission' })).not.toBeInTheDocument()
     // The tax settings are not even read: nothing is computed from today's settings.
     expect(api.calls.filter((call) => call.table === 'tax_settings')).toEqual([])
   })

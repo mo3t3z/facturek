@@ -92,20 +92,26 @@ const clients = [
 ]
 const draftRow = {
   id: DRAFT, type: 'devis', number: null, year: null, status: 'draft', issue_date: null, due_date: '2026-11-12',
-  buyer_name: null, client: { name: 'Société Élan' },
+  buyer_name: null, net_a_payer: null, client: { name: 'Société Élan' },
 }
 const sentRow = {
   id: SENT, type: 'facture', number: 7, year: 2026, status: 'sent', issue_date: '2026-01-01', due_date: null,
   // The client was renamed after the facture was issued: the snapshot must win.
-  buyer_name: 'Élan SARL (ancien nom)', client: { name: 'Société Élan' },
+  buyer_name: 'Élan SARL (ancien nom)', net_a_payer: '1190.600', client: { name: 'Société Élan' },
 }
 const draftDetail = {
   id: DRAFT, type: 'devis', number: null, year: null, status: 'draft', client_id: ELAN, issue_date: null, due_date: '2026-11-12',
-  notes: 'À confirmer', buyer_name: null, buyer_matricule_fiscal: null, buyer_address: null,
+  notes: 'À confirmer', seller_name: null, seller_matricule_fiscal: null, seller_address: null,
+  buyer_name: null, buyer_matricule_fiscal: null, buyer_address: null,
+  total_ht: null, total_tva: null, total_ttc: null, timbre_fiscal: null, net_a_payer: null, tva_breakdown: null,
 }
 const sentDetail = {
   id: SENT, type: 'facture', number: 7, year: 2026, status: 'sent', client_id: ELAN, issue_date: '2026-01-01', due_date: null,
-  notes: null, buyer_name: 'Élan SARL (ancien nom)', buyer_matricule_fiscal: '1234567/A/M/000', buyer_address: '12 rue de Carthage',
+  notes: null, seller_name: 'Atelier Amel (à l\'émission)', seller_matricule_fiscal: '7654321/B/M/000', seller_address: '3 avenue Habib Bourguiba',
+  buyer_name: 'Élan SARL (ancien nom)', buyer_matricule_fiscal: '1234567/A/M/000', buyer_address: '12 rue de Carthage',
+  // As PostgREST returns them with ::text; the values of the breakdown are strings.
+  total_ht: '1000.000', total_tva: '190.000', total_ttc: '1190.000', timbre_fiscal: '0.600', net_a_payer: '1190.600',
+  tva_breakdown: [{ rate: '19.000', base: '1000.000', tva: '190.000' }],
 }
 
 let list: Record<string, unknown>[]
@@ -161,7 +167,7 @@ describe('documents list', () => {
       {
         table: 'documents',
         op: 'select',
-        columns: 'id, type, number, year, status, issue_date, due_date, buyer_name, client:clients(name)',
+        columns: 'id, type, number, year, status, issue_date, due_date, buyer_name, net_a_payer::text, client:clients(name)',
         filters: { organization_id: 'org-1' },
         // created_at first, then id as the tie-breaker.
         order: [
@@ -173,7 +179,7 @@ describe('documents list', () => {
     ])
   })
 
-  it('shows type, number, client, French status, dates, and a dash for the total', async () => {
+  it('shows type, number, client, French status, dates, and the stored net à payer (a dash for a draft)', async () => {
     open('/app/documents')
     await screen.findByText('2 documents')
 
@@ -185,7 +191,9 @@ describe('documents list', () => {
     // The first of January stays the first of January.
     expect(facture.getByText("Date d'émission").nextElementSibling).toHaveTextContent('01/01/2026')
     expect(facture.getByText('Échéance').nextElementSibling).toHaveTextContent('—')
-    expect(facture.getByText('Total TTC').nextElementSibling).toHaveTextContent('—')
+    // The stored net à payer of the issued facture, read as text and only formatted.
+    expect(facture.getByText('Net à payer').nextElementSibling).toHaveTextContent(/^1\s190,600 TND$/)
+    expect(facture.queryByText('Total TTC')).not.toBeInTheDocument()
 
     const devis = within(card(/^Devis/))
     expect(devis.getByRole('heading', { level: 2 })).toHaveTextContent('Brouillon')
@@ -193,6 +201,8 @@ describe('documents list', () => {
     expect(devis.getByText('Client').nextElementSibling).toHaveTextContent('Société Élan')
     expect(devis.getByText("Date d'émission").nextElementSibling).toHaveTextContent('—')
     expect(devis.getByText('Échéance').nextElementSibling).toHaveTextContent('12/11/2026')
+    // A draft stores no total: a dash, never a computed amount.
+    expect(devis.getByText('Net à payer').nextElementSibling).toHaveTextContent(/^—$/)
   })
 
   it('filters by type and by status, in the query and in the address', async () => {
@@ -472,7 +482,7 @@ describe('editing the header of a draft', () => {
     const read = documentCalls('select').find((call) => 'id' in call.filters)
     expect(read?.filters).toEqual({ organization_id: 'org-1', id: DRAFT })
     expect(read?.columns).toBe(
-      'id, type, number, year, status, client_id, issue_date, due_date, notes, buyer_name, buyer_matricule_fiscal, buyer_address',
+      'id, type, number, year, status, client_id, issue_date, due_date, notes, seller_name, seller_matricule_fiscal, seller_address, buyer_name, buyer_matricule_fiscal, buyer_address, total_ht::text, total_tva::text, total_ttc::text, timbre_fiscal::text, net_a_payer::text, tva_breakdown',
     )
   })
 
@@ -508,17 +518,19 @@ describe('a document that is no longer a draft', () => {
   it('is shown read-only, from its snapshot: no form, no save, no delete', async () => {
     open(`/app/documents/${SENT}`)
     expect(await screen.findByRole('heading', { level: 1, name: 'Facture 2026-0007' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent('Ce document a été émis : il ne peut plus être modifié.')
+    expect(screen.getByText('Ce document a été émis : il ne peut plus être modifié.')).toBeInTheDocument()
     expect(screen.getByText('Statut').nextElementSibling).toHaveTextContent('Émise')
-    expect(screen.getByText('Client').nextElementSibling).toHaveTextContent('Élan SARL (ancien nom)')
-    expect(screen.getByText('Matricule fiscal').nextElementSibling).toHaveTextContent('1234567/A/M/000')
-    expect(screen.getByText('Adresse').nextElementSibling).toHaveTextContent('12 rue de Carthage')
+    // The buyer as printed on the document, not the client's current record.
+    const buyer = within(screen.getByRole('region', { name: 'Client' }))
+    expect(buyer.getByText('Nom').nextElementSibling).toHaveTextContent('Élan SARL (ancien nom)')
+    expect(buyer.getByText('Matricule fiscal').nextElementSibling).toHaveTextContent('1234567/A/M/000')
+    expect(buyer.getByText('Adresse').nextElementSibling).toHaveTextContent('12 rue de Carthage')
     expect(screen.getByText("Date d'émission").nextElementSibling).toHaveTextContent('01/01/2026')
     expect(screen.getByText('Échéance').nextElementSibling).toHaveTextContent('—')
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Enregistrer|Supprimer/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Enregistrer|Supprimer|Émettre/ })).not.toBeInTheDocument()
     // The clients are not even loaded: nothing can be chosen.
     expect(api.calls.filter((call) => call.table === 'clients')).toEqual([])
   })

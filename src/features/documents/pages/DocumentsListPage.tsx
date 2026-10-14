@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router'
 import { Alert } from '../../../components/FormControls'
 import { dangerButton, primaryButton, secondaryButton } from '../../../components/styles'
 import { errorMessageKey } from '../../../lib/errors'
+import { formatMillimes } from '../../../lib/money/money'
 import { useOrganization } from '../../organizations/useOrganization'
 import { deleteDraft, type DocumentFilters, type DocumentListItem, DOCUMENTS_LIMIT, documentsKey, listDocuments } from '../api'
 import { formatDay } from '../dates'
@@ -158,9 +159,11 @@ export function DocumentsListPage() {
                     <dd className="text-slate-900">{document.issue_date ? formatDay(document.issue_date) : none}</dd>
                     <dt className="text-slate-500">{t('documents.columns.dueDate')}</dt>
                     <dd className="text-slate-900">{document.due_date ? formatDay(document.due_date) : none}</dd>
-                    {/* Totals arrive with the lines and with finalizing. */}
+                    {/* The STORED net à payer of an issued document. A draft stores no total. */}
                     <dt className="text-slate-500">{t('documents.columns.total')}</dt>
-                    <dd className="text-slate-900">{none}</dd>
+                    <dd className="text-slate-900">
+                      {document.netAPayer === null ? none : t('money.amount', { value: formatMillimes(document.netAPayer) })}
+                    </dd>
                   </dl>
 
                   {confirming === document.id ? (

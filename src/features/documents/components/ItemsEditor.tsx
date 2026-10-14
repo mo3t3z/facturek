@@ -11,6 +11,7 @@ import { createItem, deleteItem, type DocumentItem, ITEMS_LIMIT, itemsKey, listI
 import { type ItemInput, type ItemValues, readItem } from '../itemSchema'
 import { type PendingLine, previewLines, previewLineTotal, previewTimbre, previewTotals } from '../preview'
 import type { DocumentType } from '../schemas'
+import { IssuePanel } from './IssuePanel'
 import { ItemForm } from './ItemForm'
 import { TotalsPreview } from './TotalsPreview'
 
@@ -20,6 +21,10 @@ type ItemsEditorProps = {
   documentType: DocumentType
   /** True for a draft. False for an issued document: the lines are shown, nothing can be changed. */
   editable: boolean
+  /** The SAVED document has a client (a draft may not). Only used by the issue panel. */
+  hasClient: boolean
+  /** The header form of the draft has unsaved changes. Only used by the issue panel. */
+  headerDirty: boolean
 }
 
 const NO_PENDING: PendingLine = { state: 'none' }
@@ -40,8 +45,9 @@ const asTyped = (item: DocumentItem): ItemInput => ({
  * The lines of a document. For a draft: add, edit and remove a line, one line at a time
  * (each is saved on its own, see itemsApi.ts), and a live totals preview.
  * For an issued document: the same list, read-only, without any form or preview.
+ * Under the preview of a draft, the issue panel ("Émettre") works on the SAVED lines only.
  */
-export function ItemsEditor({ organizationId, documentId, documentType, editable }: ItemsEditorProps) {
+export function ItemsEditor({ organizationId, documentId, documentType, editable, hasClient, headerDirty }: ItemsEditorProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   // One form at a time: the "add" form, or the form of the line being edited.
@@ -273,6 +279,23 @@ export function ItemsEditor({ organizationId, documentId, documentType, editable
               totals={previewTotals(previewLines(items.data, pending), previewTimbre(documentType, settings))}
               timbre={previewTimbre(documentType, settings)}
               pending={pending.state}
+            />
+          )}
+
+          {editable && (
+            <IssuePanel
+              organizationId={organizationId}
+              documentId={documentId}
+              documentType={documentType}
+              hasClient={hasClient}
+              lineCount={items.data.length}
+              // The SAVED lines only: `pending` (what is being typed) is deliberately left out.
+              // This is the amount Postgres will be asked to confirm.
+              totals={previewTotals(items.data, previewTimbre(documentType, settings))}
+              timbre={previewTimbre(documentType, settings)}
+              taxSettings={tax.isSuccess ? 'ready' : tax.isError ? 'error' : 'loading'}
+              lineFormBusy={editing !== null || pending.state !== 'none'}
+              headerDirty={headerDirty}
             />
           )}
         </>

@@ -1,4 +1,4 @@
-import type { Millimes } from '../../lib/money/money'
+import { fromDbNumeric, type Millimes } from '../../lib/money/money'
 import { supabase } from '../../lib/supabase'
 import { draftInsertPayload, draftUpdatePayload, finalizePayload } from './payload'
 import type { DocumentStatus, DocumentType, DraftHeaderValues, NewDraftValues } from './schemas'
@@ -7,8 +7,9 @@ import type { DocumentStatus, DocumentType, DraftHeaderValues, NewDraftValues } 
 // a draft. Items, totals and finalizing come in later checkpoints.
 //
 // Every call names the organization explicitly, on top of RLS (see clients/api.ts).
-// Columns are always listed: select('*') would also return the numeric snapshot columns
-// as JSON numbers. No numeric column is read here; `number` and `year` are integers.
+// Columns are always listed: select('*') would return the numeric columns as JSON numbers.
+// Every amount is selected as TEXT (::text) and parsed with fromDbNumeric; `number` and
+// `year` are integers. src/test/sourceRules.test.ts refuses an amount without ::text.
 //
 // RLS lets a member UPDATE or DELETE a document only while it is a draft. On an issued
 // document such a statement is NOT an error for PostgREST: it matches no row. Every
@@ -24,9 +25,13 @@ export const DOCUMENTS_LIMIT = 1000
 // not depend on the clients list, which has its own 1000 row limit.
 // buyer_name is the snapshot taken when the document was issued: it wins over the
 // client's current name for an issued document.
-const LIST_COLUMNS = 'id, type, number, year, status, issue_date, due_date, buyer_name, client:clients(name)'
+// net_a_payer is NULL on a draft: a draft stores no total.
+const LIST_COLUMNS = 'id, type, number, year, status, issue_date, due_date, buyer_name, net_a_payer::text, client:clients(name)'
+// The seller and buyer columns and the totals are the snapshot taken when the document was
+// issued; they are all NULL on a draft. tva_breakdown is jsonb whose values are strings.
+// One literal on purpose: supabase-js reads the columns from the TYPE of this string.
 const DETAIL_COLUMNS =
-  'id, type, number, year, status, client_id, issue_date, due_date, notes, buyer_name, buyer_matricule_fiscal, buyer_address'
+  'id, type, number, year, status, client_id, issue_date, due_date, notes, seller_name, seller_matricule_fiscal, seller_address, buyer_name, buyer_matricule_fiscal, buyer_address, total_ht::text, total_tva::text, total_ttc::text, timbre_fiscal::text, net_a_payer::text, tva_breakdown'
 
 export type DocumentListItem = {
   id: string
@@ -37,6 +42,8 @@ export type DocumentListItem = {
   issue_date: string | null
   due_date: string | null
   buyer_name: string | null
+  /** The stored net à payer of an issued document; null for a draft. */
+  netAPayer: Millimes | null
   client: { name: string } | null
 }
 
@@ -50,9 +57,20 @@ export type DocumentDetail = {
   issue_date: string | null
   due_date: string | null
   notes: string | null
+  seller_name: string | null
+  seller_matricule_fiscal: string | null
+  seller_address: string | null
   buyer_name: string | null
   buyer_matricule_fiscal: string | null
   buyer_address: string | null
+  // The stored totals, exactly as PostgREST returns them: text with 3 decimals, or null on
+  // a draft. They are read by readStoredTotals() (storedTotals.ts), nowhere else.
+  total_ht: string | null
+  total_tva: string | null
+  total_ttc: string | null
+  timbre_fiscal: string | null
+  net_a_payer: string | null
+  tva_breakdown: unknown
 }
 
 export type DocumentFilters = { type: DocumentType | null; status: DocumentStatus | null }
@@ -72,7 +90,7 @@ export async function listDocuments(organizationId: string, filters: DocumentFil
     .order('id', { ascending: false })
     .limit(DOCUMENTS_LIMIT)
   if (error) throw error
-  return data
+  return data.map(({ net_a_payer, ...row }) => ({ ...row, netAPayer: net_a_payer === null ? null : fromDbNumeric(net_a_payer) }))
 }
 
 /** Returns null when the document does not exist in this organization. */

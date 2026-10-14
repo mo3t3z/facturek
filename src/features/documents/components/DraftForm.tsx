@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Alert, SelectField, SubmitButton, TextAreaField, TextField, TextLink } from '../../../components/FormControls'
@@ -19,6 +20,8 @@ type DraftFormProps = {
   savedKey: string | null
   submitLabel: string
   pendingLabel: string
+  /** Told whether the form holds changes that are not saved (the issue panel needs it). */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 /** The header of a draft: type (when it must be chosen), client, dates and notes. */
@@ -29,6 +32,17 @@ export function DraftForm(props: DraftFormProps) {
     defaultValues: props.defaultValues,
   })
   const errors = form.formState.errors
+  const { isDirty } = form.formState
+  const { savedKey, onDirtyChange } = props
+
+  // "Dirty" means different from what is SAVED. After a successful save the values in the
+  // form are the saved ones: they become the new reference.
+  useEffect(() => {
+    if (savedKey) form.reset(form.getValues())
+  }, [savedKey, form])
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
