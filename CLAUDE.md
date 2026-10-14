@@ -313,6 +313,17 @@ introduced.
   totals of the read-only list are the one derived value (decision I-3).
 - `TotalsTable` is the one component that lays out totals (preview, confirmation, issued
   view): same rows, same order, same labels.
+- Any irreversible confirmation (issue, cancel, convert, pay) is BOUND to the exact values
+  it displays: they are captured when it opens, the value sent is the displayed one, never
+  a live recomputation, and if the live values change behind it, it closes and says so
+  (`sameTotals` in `IssuePanel`). Commit `78a6461` is the bug that taught this: lines were
+  reloaded behind an open confirmation, its amounts changed in place, and a click issued a
+  devis for 190,400 that the user had not seen.
+- Known limit: DF009 compares only `net_a_payer`, not the content of the document. Two
+  edits made elsewhere that keep the net à payer equal pass the server check; only the UI
+  guard (`sameTotals`, which also compares HT, TVA, timbre and the table by rate) catches
+  them, and only on a screen that has reloaded. Revisit with the avoir / TEIF work (for
+  example a hash of the content sent with the expected total).
 - Screens that need the organization are routed under `<RequireOrganization>` and read it
   with `useOrganization()`. Every query names `organization_id` explicitly, on top of RLS.
 - Text typed by the user never goes into a PostgREST filter string (the clients search
