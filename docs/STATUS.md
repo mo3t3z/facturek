@@ -43,7 +43,7 @@ could swallow a click (`d664661`).
 |---|---|---|---|
 | 1 | **P2e payments and status** | `record_payment` (the only API path, INSERT on `payments` revoked), automatic `paid`, `cancel_devis`. Codes reserved: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis that has a converted facture. | Payments are compared with `net_a_payer`, not `total_ttc`. The `paid_at` rules (TODO(accountant)). The existing tests that insert payments or set statuses by hand must be listed before anything changes. |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
-| 3 | **Free-text length CHECKs** | CHECKs on the free-text columns other than the line description. Proposal: notes 2000, names 200, addresses 500. | The limits; existing rows must be checked first. |
+| 3 | **Free-text length CHECKs** | DONE on `checkpoint/s8-checks` (migration `20261015100001`), not merged yet. Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
@@ -64,11 +64,11 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 20 files, 961 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 20 files, 962 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 306 tests; statements 73/73, lines 68/68 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
-| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals | yes | 9 files, 660 tests, PASS |
+| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths | yes | 10 files, 670 tests, PASS |
 | `npm run test:concurrency` | Real parallel connections: numbering, races, expected total | yes | 9 scenarios (0 to 8), 46 checks passed |
 | `npm run test:e2e-auth` | Signup, confirmation, login, recovery through the local APIs | yes | 5 steps, 36 checks passed |
 | `npm run test:e2e-settings` | Settings through REST: numerics as text, RLS isolation | yes | 5 steps, 26 checks passed |
@@ -144,19 +144,31 @@ issuing for real, a double click, the issued view, the list column, the two-tab 
 an issued document opened by its URL, the live preview, invalid values, the timbre row, and
 a devis draft of an organization without a tax settings row.
 
+Done on 2026-10-15, with screenshots (first time the layout was SEEN), on a new throwaway
+account (`s8-layout-20261015@example.test`): login, settings, clients (list, form), documents
+(form, draft, lines editor, totals preview, issue panel, confirmation, issued view, list),
+at desktop width (about 800 px) and phone width (375 px). Result: no horizontal overflow at
+375 px, no console error, no broken layout. Keyboard in the confirmation: focus starts on
+"Annuler" with a visible ring; Tab order is logical; Escape does NOT close it (inline panel,
+not a modal; accepted). Not seen: tablet width, dark mode, a long document (many lines).
+
+Also done on 2026-10-15, on the same account, on the real screen: DF005 (future date) and
+DF006 (date before the previous facture) show their French message; DF002 with two tabs
+(the second tab ends on the issued view, no second number); the seller warnings disappear
+once matricule and address are filled. DF008 cannot be reached from the screen: the header
+form already refuses a due date before the issue date. DF003, DF004, DF007, DF022 and DF023
+cannot be reached either: the button is disabled first (covered by `issue.test.tsx`).
+Bug found and fixed: a refusal stayed on screen after the header was corrected; it now
+goes as soon as the header or a line is edited.
+
 Still pending:
-- **Layout, at phone and desktop width.** No screen of P2c or P2d has ever been SEEN:
-  every browser check so far read the page as text, with no screenshot.
-- Keyboard navigation through the issue confirmation, beyond the initial focus.
-- Each refusal of finalize other than DF009 on the real screen (DF002 to DF008, DF022,
-  DF023, a document that no longer exists).
-- An organization without a tax settings row, on a FACTURE draft.
-- The seller warnings disappearing once matricule and address are filled in Paramètres.
-- The settings, clients and auth screens after the P2d changes (not re-checked by hand).
+- An organization without a tax settings row, on a FACTURE draft (needs deleting that row
+  by hand on a test account).
+- The auth screens (confirm page, recovery) at phone width.
 
 ## g. Local test data
 
-The local database is the only database. It holds 4 accounts (as of 2026-10-14).
+The local database is the only database. It holds 5 accounts (as of 2026-10-15).
 Passwords are never written in this repository's tracked files.
 
 | E-mail | Organization | Created | What it holds |
@@ -165,6 +177,7 @@ Passwords are never written in this repository's tracked files.
 | `p2a-manual-20261013@example.test` | P2a Manual Renommée | 2026-10-13 | 1 draft facture; timbre enabled |
 | `p2c3-manual-20261013@example.test` | Test Manuel P2c3 | 2026-10-13 | The account for manual checks. Issued and permanent: Facture 2026-0001 (23,800), Facture 2026-0002 (120,000, with a timbre of 1,000), Devis 2026-0001 (190,400, issued by the bug fixed in `78a6461`). 1 draft devis. |
 | `moetez.ayed404@gmail.com` | moetez ayed | 2026-10-14 | No document. Created by the developer; no fingerprint recorded for it. |
+| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Layout and refusal checks: 1 client, Factures 2026-0001 (238,000) and 2026-0002 (59,500), issued. Throwaway. |
 
 The fingerprint is `md5` of the user id, organization id, role and organization creation
 time of the reference account. It changes if that account is re-created, which is what a
