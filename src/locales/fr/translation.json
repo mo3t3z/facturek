@@ -443,7 +443,8 @@
       "errors": {
         "totalsChanged": "Rien n'a été émis : les totaux de ce document ont changé depuis leur affichage. Les lignes et les paramètres viennent d'être rechargés : vérifiez le nouveau total, puis émettez à nouveau.",
         "alreadyIssued": "Ce document a déjà été émis. Son état vient d'être rechargé.",
-        "missing": "Ce document est introuvable. Il a peut-être été supprimé."
+        "missing": "Ce document est introuvable. Il a peut-être été supprimé.",
+        "changedWhileConfirming": "Rien n'a été émis : les lignes ou les paramètres de ce document ont changé pendant la confirmation. Vérifiez le nouveau total, puis émettez à nouveau."
       }
     }
   }

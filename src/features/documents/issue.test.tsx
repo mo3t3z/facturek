@@ -293,6 +293,73 @@ describe('the confirmation', () => {
   })
 })
 
+describe('a confirmation that is open while the document changes elsewhere', () => {
+  // Another tab adds a line; this tab gets the focus back and React Query reloads the lines.
+  async function changeElsewhere(client: { invalidateQueries: (filters: { queryKey: readonly unknown[] }) => Promise<void> }) {
+    lines = [lineA, lineB, { id: 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3', position: 4, description: 'Ajoutée ailleurs', quantity: '1.000', unit_price: '100.000', tva_rate: '19.000' }]
+    await client.invalidateQueries({ queryKey: ['documents', 'org-1', 'items', DOC] })
+  }
+
+  it('closes and says so: it never swaps its amounts in place, and nothing is sent', async () => {
+    const { client } = open()
+    const region = await panel()
+    await waitFor(() => expect(issueButton(region)).toBeEnabled())
+    await user.click(issueButton(region))
+    expect(total(confirmation(region), 'Net à payer')).toHaveTextContent('30,150 TND')
+
+    await changeElsewhere(client)
+
+    const alert = await within(region).findByRole('alert')
+    expect(alert).toHaveTextContent(
+      "Rien n'a été émis : les lignes ou les paramètres de ce document ont changé pendant la confirmation. Vérifiez le nouveau total, puis émettez à nouveau.",
+    )
+    // No confirmation left to click on, with the old amount or with the new one.
+    expect(within(region).queryByRole('group')).not.toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: "Confirmer l'émission" })).not.toBeInTheDocument()
+    expect(finalizeCalls).toEqual([])
+  })
+
+  it('opening it again shows the new totals, and those are the ones sent', async () => {
+    const { client } = open()
+    const region = await panel()
+    await waitFor(() => expect(issueButton(region)).toBeEnabled())
+    await user.click(issueButton(region))
+    await changeElsewhere(client)
+    await within(region).findByRole('alert')
+
+    await user.click(issueButton(region))
+    expect(within(region).queryByRole('alert')).not.toBeInTheDocument()
+    // 25.000 + 100.000 HT; TVA 4.150 + 19.000; TTC 148.150; timbre 1.000.
+    expect(total(confirmation(region), 'Net à payer')).toHaveTextContent('149,150 TND')
+    await user.click(within(confirmation(region)).getByRole('button', { name: "Confirmer l'émission" }))
+    await waitFor(() => expect(finalizeCalls).toEqual([{ p_document_id: DOC, p_expected_net_a_payer: '149.150' }]))
+  })
+
+  it('a change of the tax settings behind it closes it too', async () => {
+    const { client } = open()
+    const region = await panel()
+    await waitFor(() => expect(issueButton(region)).toBeEnabled())
+    await user.click(issueButton(region))
+    tax = { ...tax, timbre_fiscal: '0.600' }
+    await client.invalidateQueries({ queryKey: ['settings', 'tax', 'org-1'] })
+    expect(await within(region).findByRole('alert')).toHaveTextContent('ont changé pendant la confirmation')
+    expect(within(region).queryByRole('group')).not.toBeInTheDocument()
+    expect(finalizeCalls).toEqual([])
+  })
+
+  it('a reload that brings back the same lines leaves it open', async () => {
+    const { client } = open()
+    const region = await panel()
+    await waitFor(() => expect(issueButton(region)).toBeEnabled())
+    await user.click(issueButton(region))
+    const before = selects('document_items').length
+    await client.invalidateQueries({ queryKey: ['documents', 'org-1', 'items', DOC] })
+    await waitFor(() => expect(selects('document_items').length).toBeGreaterThan(before))
+    expect(confirmation(region)).toBeInTheDocument()
+    expect(within(region).queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
 describe('confirming', () => {
   it('sends the document id and, as a STRING, the net à payer computed from the saved lines and the tax settings', async () => {
     const { group } = await openConfirmation()

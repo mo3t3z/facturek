@@ -44,16 +44,32 @@ const ISSUE_ERRORS = {
 
 const codeOf = (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? error.code : null)
 
+/** Two results of computeTotals() show the same amounts (integers only: no arithmetic). */
+const sameTotals = (a: Totals, b: Totals) =>
+  a.totalHT === b.totalHT &&
+  a.totalTVA === b.totalTVA &&
+  a.totalTTC === b.totalTTC &&
+  a.timbre === b.timbre &&
+  a.netAPayer === b.netAPayer &&
+  a.tvaLines.length === b.tvaLines.length &&
+  a.tvaLines.every((line, index) => line.rate === b.tvaLines[index]?.rate && line.baseHT === b.tvaLines[index]?.baseHT && line.tva === b.tvaLines[index]?.tva)
+
 /**
  * "Émettre" on a draft: the button, the reasons why it is disabled, and the confirmation.
  *
  * Issuing cannot be undone: the document gets its number and is frozen. So nothing is sent
  * before an explicit confirmation that shows the totals of what will be issued.
  *
- * The amount sent as the expected total is `totals.netAPayer`, computed by computeTotals()
- * from the saved lines. Postgres recomputes it from the lines it has and refuses to issue
- * if the two differ (DF009). The disabled button is a convenience: Postgres is the
- * authority and re-checks every rule (client, lines, dates, timbre, totals).
+ * The amount sent as the expected total is the net à payer computed by computeTotals() from
+ * the saved lines AT THE MOMENT THE CONFIRMATION WAS OPENED: exactly the amount written in
+ * it. Postgres recomputes it from the lines it has and refuses to issue if the two differ
+ * (DF009). The disabled button is a convenience: Postgres is the authority and re-checks
+ * every rule (client, lines, dates, timbre, totals).
+ *
+ * The lines can be reloaded behind an open confirmation (another tab changed them and this
+ * one got the focus back). The confirmation is therefore bound to the totals it was opened
+ * with: if they are no longer the totals of the screen, it closes and says so. It never
+ * swaps its amounts in place, which could issue an amount the user did not read.
  *
  * TODO(accountant): whether a facture without the seller's matricule fiscal or address is
  * valid. For now both are warnings in the confirmation, and nothing is blocked.
@@ -64,7 +80,8 @@ export function IssuePanel(props: IssuePanelProps) {
   const queryClient = useQueryClient()
   const reasonsId = useId()
   const questionId = useId()
-  const [confirming, setConfirming] = useState(false)
+  // The totals the open confirmation was opened with (null: no confirmation is open).
+  const [confirmed, setConfirmed] = useState<Totals | null>(null)
   // A second click can arrive before React has rendered the disabled button.
   const sending = useRef(false)
 
@@ -83,7 +100,7 @@ export function IssuePanel(props: IssuePanelProps) {
       await queryClient.invalidateQueries({ queryKey: documentsKey(organizationId) })
     },
     onError: async (error) => {
-      setConfirming(false)
+      setConfirmed(null)
       const code = codeOf(error)
       if (code === 'DF009') {
         // The total the user confirmed is not the total of the stored document: something
@@ -117,13 +134,16 @@ export function IssuePanel(props: IssuePanelProps) {
     else if (props.lineCount > 0 && totals.totalTTC === 0) reasons.push('documents.issue.blocked.zeroTotal')
   }
   const blocked = reasons.length > 0 || totals === null
+  // The totals changed after the confirmation was opened, and no request is on its way.
+  const stale = confirmed !== null && !issue.isPending && (totals === null || !sameTotals(confirmed, totals))
   // The confirmation never stays open over something that changed under it.
-  const open = confirming && !blocked
+  const open = confirmed !== null && !blocked && !stale
 
   const send = () => {
-    if (totals === null || blocked || sending.current || issue.isPending) return
+    if (confirmed === null || blocked || stale || sending.current || issue.isPending) return
     sending.current = true
-    issue.mutate(totals.netAPayer)
+    // The amount the user is looking at, not whatever the screen has computed since.
+    issue.mutate(confirmed.netAPayer)
   }
 
   const seller = organization.data
@@ -141,6 +161,12 @@ export function IssuePanel(props: IssuePanelProps) {
       {issue.isError && (
         <div className="mt-3">
           <Alert kind="error">{t(errorMessageKey(issue.error, ISSUE_ERRORS))}</Alert>
+        </div>
+      )}
+
+      {stale && (
+        <div className="mt-3">
+          <Alert kind="error">{t('documents.issue.errors.changedWhileConfirming')}</Alert>
         </div>
       )}
 
@@ -163,7 +189,7 @@ export function IssuePanel(props: IssuePanelProps) {
             aria-describedby={reasons.length > 0 ? reasonsId : undefined}
             onClick={() => {
               issue.reset()
-              setConfirming(true)
+              setConfirmed(totals)
             }}
             className={primaryButton}
           >
@@ -172,7 +198,7 @@ export function IssuePanel(props: IssuePanelProps) {
         </div>
       )}
 
-      {open && totals !== null && (
+      {open && confirmed !== null && (
         <div role="group" aria-labelledby={questionId} className="mt-4 rounded-md border border-slate-300 p-4">
           <h3 id={questionId} className="text-base font-semibold text-slate-900">
             {t(`documents.issue.question.${documentType}`)}
@@ -181,12 +207,12 @@ export function IssuePanel(props: IssuePanelProps) {
 
           <p className="mt-4 text-sm font-medium text-slate-700">{t('documents.issue.totalsTitle')}</p>
           <TotalsTable
-            tvaLines={totals.tvaLines}
-            totalHT={totals.totalHT}
-            totalTVA={totals.totalTVA}
-            totalTTC={totals.totalTTC}
-            timbre={totals.timbre}
-            netAPayer={totals.netAPayer}
+            tvaLines={confirmed.tvaLines}
+            totalHT={confirmed.totalHT}
+            totalTVA={confirmed.totalTVA}
+            totalTTC={confirmed.totalTTC}
+            timbre={confirmed.timbre}
+            netAPayer={confirmed.netAPayer}
           />
 
           {warnings.length > 0 && (
@@ -212,7 +238,7 @@ export function IssuePanel(props: IssuePanelProps) {
               // The keyboard lands on the safe choice.
               autoFocus
               disabled={issue.isPending}
-              onClick={() => setConfirming(false)}
+              onClick={() => setConfirmed(null)}
               className={secondaryButton}
             >
               {t('documents.issue.cancel')}
