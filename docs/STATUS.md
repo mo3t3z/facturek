@@ -43,7 +43,7 @@ could swallow a click (`d664661`).
 |---|---|---|---|
 | 1 | **P2e payments and status** | `record_payment` (the only API path, INSERT on `payments` revoked), automatic `paid`, `cancel_devis`. Codes reserved: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis that has a converted facture. | Payments are compared with `net_a_payer`, not `total_ttc`. The `paid_at` rules (TODO(accountant)). The existing tests that insert payments or set statuses by hand must be listed before anything changes. |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
-| 3 | **Free-text length CHECKs** | DONE on `checkpoint/s8-checks` (migration `20261015100001`), not merged yet. Limits = the screens'. | - |
+| 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
