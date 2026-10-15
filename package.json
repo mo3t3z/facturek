@@ -21,6 +21,7 @@
     "test:e2e-settings": "node scripts/test-e2e-settings.mjs",
     "test:e2e-documents": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/test-e2e-documents.mjs",
     "test:e2e-items": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/test-e2e-items.mjs",
+    "test:e2e-payments": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/test-e2e-payments.mjs",
     "money:vectors": "node scripts/generate-money-vectors.mjs"
   },
   "dependencies": {
