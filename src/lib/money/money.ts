@@ -296,3 +296,22 @@ export function computeTotals(input: { readonly lines: readonly Line[]; readonly
     netAPayer: toMillimes(totalHT + totalTVA + timbre, 'net à payer'),
   }
 }
+
+// --- payments ---------------------------------------------------------------------------------
+
+/** What has been paid on a facture and what is still owed. Derived, never stored. */
+export type PaymentState = { readonly paid: Millimes; readonly remaining: Millimes }
+
+/**
+ * The sum of the payments and the remaining amount (net à payer - sum).
+ * The database never lets the payments exceed the net à payer (DF018), so a sum above it
+ * means the screen is not looking at what Postgres has: it throws instead of showing a
+ * negative remaining amount.
+ * @throws MoneyRangeError
+ */
+export function paymentState(netAPayer: Millimes, payments: readonly Millimes[]): PaymentState {
+  const net = BigInt(checked(netAPayer, MAX_MILLIMES, 'net à payer'))
+  const paid = payments.reduce((sum, amount) => sum + BigInt(checked(amount, MAX_MILLIMES, 'payment')), 0n)
+  if (paid > net) throw new MoneyRangeError('the payments exceed the net à payer')
+  return { paid: toMillimes(paid, 'paid'), remaining: toMillimes(net - paid, 'remaining') }
+}

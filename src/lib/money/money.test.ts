@@ -1,30 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  computeTotals,
-  formatMillimes,
-  formatQuantity,
-  formatRate,
-  fromDbNumeric,
-  fromDbQuantity,
-  fromDbRate,
-  GROUP_SEPARATOR,
-  type Line,
-  lineTotalHT,
-  MAX_MILLIMES,
-  MAX_QTY_MILLI,
-  MAX_RATE_MILLI,
-  type Millimes,
-  millimes,
-  MoneyFormatError,
-  MoneyRangeError,
-  parseMillimes,
-  parseQuantity,
-  parseRate,
-  qtyMilli,
-  rateMilli,
-  toDbNumeric,
-  tvaByRate,
-} from './money'
+import { computeTotals, formatMillimes, formatQuantity, formatRate, fromDbNumeric, fromDbQuantity, fromDbRate, GROUP_SEPARATOR, type Line, lineTotalHT, MAX_MILLIMES, MAX_QTY_MILLI, MAX_RATE_MILLI, type Millimes, millimes, MoneyFormatError, MoneyRangeError, parseMillimes, parseQuantity, parseRate, qtyMilli, rateMilli, toDbNumeric, tvaByRate, paymentState } from './money'
 import source from './money.ts?raw'
 import vectorFile from './vectors.json'
 
@@ -554,5 +529,32 @@ describe('source rules for src/lib/money', () => {
     // The only numbers in the code are scales (1000, 100 000), the limits and 0 / 2 / 3 / 4.
     const numbers = [...code.matchAll(/\b[0-9][0-9_]*n?\b/g)].map(([value]) => value.replace(/_/g, '').replace(/n$/, ''))
     expect([...new Set(numbers)].sort()).toEqual(['0', '1', '1000', '100000', '2', '3', '4', '9', '999999999999'])
+  })
+})
+
+describe('paymentState', () => {
+  it('nothing paid: the remaining amount is the net à payer', () => {
+    expect(paymentState(millimes(101000), [])).toEqual({ paid: 0, remaining: 101000 })
+  })
+
+  it('adds the payments exactly, millime by millime', () => {
+    expect(paymentState(millimes(1000), [millimes(300), millimes(300), millimes(300)])).toEqual({ paid: 900, remaining: 100 })
+  })
+
+  it('a facture paid exactly has nothing left', () => {
+    expect(paymentState(millimes(101000), [millimes(100000), millimes(1000)])).toEqual({ paid: 101000, remaining: 0 })
+  })
+
+  it('works at the largest amount, where a float would lose millimes', () => {
+    expect(paymentState(millimes(MAX_MILLIMES), [millimes(MAX_MILLIMES - 1)])).toEqual({ paid: MAX_MILLIMES - 1, remaining: 1 })
+  })
+
+  it('refuses payments above the net à payer instead of showing a negative amount', () => {
+    expect(() => paymentState(millimes(1000), [millimes(600), millimes(401)])).toThrow(MoneyRangeError)
+  })
+
+  it('refuses a value that is not a whole number of millimes', () => {
+    expect(() => paymentState(1.5 as Millimes, [])).toThrow(MoneyRangeError)
+    expect(() => paymentState(millimes(1000), [-1 as Millimes])).toThrow(MoneyRangeError)
   })
 })

@@ -1,5 +1,6 @@
 import { dbNumeric } from '../../lib/dbNumeric'
 import { type Millimes, toDbNumeric } from '../../lib/money/money'
+import { isIsoDay } from './dates'
 import type { ItemValues } from './itemSchema'
 import type { DraftHeaderValues, NewDraftValues } from './schemas'
 
@@ -47,6 +48,32 @@ export function finalizePayload(documentId: string, expectedNetAPayer: Millimes)
     p_document_id: documentId,
     p_expected_net_a_payer: toDbNumeric(expectedNetAPayer),
   }
+}
+
+// --- payments and cancelling ---------------------------------------------------------------
+// The API role cannot insert a payment: record_payment(p_document_id, p_amount, p_paid_at,
+// p_method) is its only path. The amount is TEXT with 3 decimals ("250.000"), for the same
+// reason as the expected total above; Postgres refuses any other form and zero (DF024).
+// Whether the amount fits the remaining amount is Postgres's decision (DF018), not ours.
+// TODO(accountant): paid_at has no rule yet beyond being a calendar day.
+
+export const PAYMENT_METHODS = ['virement', 'cheque', 'cash'] as const
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+
+export function paymentPayload(documentId: string, amount: Millimes, paidAt: string, method: PaymentMethod) {
+  if (amount === 0) throw new RangeError('a payment cannot be zero')
+  if (!isIsoDay(paidAt)) throw new RangeError('paid_at must be a YYYY-MM-DD day')
+  return {
+    p_document_id: documentId,
+    p_amount: toDbNumeric(amount),
+    p_paid_at: paidAt,
+    p_method: method,
+  }
+}
+
+// cancel_devis(p_devis_id): only a sent devis, never once a facture was converted from it (DF021).
+export function cancelDevisPayload(devisId: string) {
+  return { p_devis_id: devisId }
 }
 
 // --- lines ------------------------------------------------------------------------------------
