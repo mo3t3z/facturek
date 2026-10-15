@@ -165,8 +165,8 @@ Bug found and fixed: a refusal stayed on screen after the header was corrected; 
 goes as soon as the header or a line is edited.
 
 P2e3, checked in a browser on 2026-10-15 with screenshots, on the account above, at desktop
-width and at about 404 px (the pane was being resized, so not exactly 375 px; no horizontal
-overflow): the payments block of a sent facture, the form (empty amount, today proposed, no
+width and at exactly 375 px (block and confirmation; page width 375, no element wider):
+the payments block of a sent facture, the form (empty amount, today proposed, no
 method), the confirmation (amount, day, method, remaining before and after; focus on
 "Annuler"), a full payment that turned the facture to "Payée" with no form left, and a devis
 issued then cancelled through "Annuler le devis" (focus on "Retour"). Found there: a click
