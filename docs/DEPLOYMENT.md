@@ -61,6 +61,9 @@ Configured like `supabase/config.toml` (the local reference). In the dashboard:
       deploy an invitation feature on a database that lacks R1.
 - [ ] R-10 (exactly one owner) is implemented and pushed before ownership can be shared or
       transferred (R5).
+- [ ] Invitation tokens never reach a log: on the hosted project, statement and parameter
+      logging must not include the parameters of `accept_invitation` (keep
+      `log_parameter_max_length_on_error = 0`, no `log_statement = all`, no pgaudit on it).
 
 ## 3. Front end (static host)
 

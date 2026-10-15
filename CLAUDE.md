@@ -157,7 +157,15 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   organization identity owner only. Postgres decides. The screens read the role with
   `useMyRole()` (`src/features/organizations`) only to hide what would be refused, and
   pick the safe side (nothing offered) while it loads or if it cannot be read.
-  R2 to R5 (invitations, several organizations, ownership transfer) are NOT built.
+  R2 (invitations, database only) is built on its branch: `organization_invitations`,
+  `create_invitation()` (owner: admin or member; admin: member; never owner; DF026),
+  `revoke_invitation()`, `accept_invitation()`. The token is 32 bytes from
+  `extensions.gen_random_bytes`, returned once, stored only as `sha256`; 7 days; once.
+  The recipient's address and its confirmation are read from `auth.users`. Nothing is
+  accepted at login. The API role reads invitations (owner/admin, without `token_hash`)
+  and writes none. A script must never put a token in the TEXT of a statement that can
+  fail (Postgres logs the statement on error): see scenario 11 of `test:concurrency`.
+  R3 to R5 (screens, several organizations, ownership transfer) are NOT built.
 
 ### Accounts (signup and repair)
 An account = profile + one organization + owner membership + empty `tax_settings`.
@@ -215,6 +223,9 @@ introduced.
 | DF024 | The amount of a payment is not a positive text with 3 decimals (`"250.000"`): `"250"`, `"1e3"`, `"2,5"`, zero and NULL are refused before any cast | `public.record_payment()` |
 | DF025 | This devis was already converted into a facture: one facture per devis (the unique index `documents_one_facture_per_devis` answers 23505 to any other path) | `public.convert_devis_to_facture()` |
 | DF026 | Your role does not allow this action: issuing, recording a payment and cancelling a devis are for `owner` and `admin` (R-1). Checked after the membership check, so another organization's document still gives DF001 | `public.finalize_document()`, `public.record_payment()`, `public.cancel_devis()` |
+| DF027 | Invitation not valid. ONE answer for every case: unknown token, expired, revoked, already used, another address, an unconfirmed address. Also an unknown or non-pending invitation for `revoke_invitation` | `public.accept_invitation()`, `public.revoke_invitation()` |
+| DF028 | Already a member of this organization. Only after the invitation was found valid AND for the caller | `public.accept_invitation()` |
+| DF029 | An invitation row changes only once, from pending to accepted or revoked; nothing else ever changes, for every role | `private.guard_organization_invitations()` (trigger on `organization_invitations`) |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
 ### Generated files

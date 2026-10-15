@@ -227,3 +227,29 @@ snapshots, totals, payments, or any column of an issued document); `useMyRole()`
 replaced for members; read-only settings for those who cannot save; Vitest; the full test
 suite; a browser check. R2 to R5 wait for a separate approval. Nothing is applied to any
 remote database.
+
+### Notes added while building R2 (2026-10-16, branch `checkpoint/r2-invitations-db`)
+
+- Built: `organization_invitations`, `create_invitation`, `revoke_invitation`,
+  `accept_invitation`, migration `20261016090001_organization_invitations.sql`. No screen.
+- `create_invitation` returns `(invitation_id, token, expires_at)`. A new invitation for the
+  same address and organization REVOKES the pending one (one pending invitation per address;
+  the old link stops working). The organization row is locked, so two creations in parallel
+  cannot leave two pending invitations.
+- `create_invitation` does NOT tell the inviter whether the address is already a member
+  (that would be a way to probe memberships): the member finds out when accepting (DF028).
+- A non-member calling `create_invitation` gets 42501; a member, an admin inviting an admin,
+  or anyone inviting an owner gets DF026; an invalid address 22023.
+- `revoke_invitation`: owner any pending invitation; admin member invitations only (DF026 for
+  an admin one); anything else DF027 (an invitation of another organization looks unknown).
+- New code DF029: a trigger freezes every invitation row except its one change from pending
+  to accepted or revoked, for every role.
+- Logs: Postgres logs the text of a failed statement. Through PostgREST the token is a
+  parameter, and parameters are not logged on error locally
+  (`log_parameter_max_length_on_error = 0`). The concurrency script put the token in the SQL
+  text: its first run left 4 already-used tokens in the LOCAL container log; the script now
+  turns that logging off for those sessions. To check on the hosted project (DEPLOYMENT.md).
+- The local database was aligned BY HAND once (a constraint renamed with ALTER) after the
+  migration file was edited before its first commit; the migration was never pushed. A
+  replay from empty (`db:reset`) is the way to confirm it (it wipes local data: consent).
+
