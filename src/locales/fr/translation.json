@@ -451,6 +451,62 @@
         "missing": "Ce document est introuvable. Il a peut-être été supprimé.",
         "changedWhileConfirming": "Rien n'a été émis : les lignes ou les paramètres de ce document ont changé pendant la confirmation. Vérifiez le nouveau total, puis émettez à nouveau."
       }
+    },
+    "payments": {
+      "title": "Paiements",
+      "none": "Aucun paiement enregistré.",
+      "netAPayer": "Net à payer",
+      "paid": "Déjà payé",
+      "remaining": "Reste à payer",
+      "settled": "Cette facture est entièrement payée.",
+      "unreadable": "Les paiements de cette facture dépassent son net à payer : aucun montant n'est affiché. Contactez le support.",
+      "formTitle": "Enregistrer un paiement",
+      "fields": {
+        "amount": "Montant (TND)",
+        "amountHint": "Au plus {{remaining}}.",
+        "paidAt": "Date du paiement",
+        "method": "Moyen de paiement",
+        "methodChoose": "Choisir…"
+      },
+      "methods": {
+        "virement": "Virement",
+        "cheque": "Chèque",
+        "cash": "Espèces"
+      },
+      "submit": "Vérifier le paiement",
+      "question": "Enregistrer ce paiement ?",
+      "consequence": "Un paiement enregistré ne peut être ni modifié ni supprimé.",
+      "remainingBefore": "Reste à payer avant",
+      "remainingAfter": "Reste à payer après",
+      "confirm": "Enregistrer le paiement",
+      "confirming": "Enregistrement…",
+      "cancel": "Annuler",
+      "recorded": "Paiement enregistré.",
+      "changedWhileConfirming": "Les paiements de cette facture ont changé pendant la confirmation. Vérifiez le reste à payer, puis recommencez.",
+      "validation": {
+        "amountRequired": "Saisissez le montant du paiement.",
+        "amountPositive": "Le montant doit être supérieur à zéro.",
+        "overRemaining": "Le montant dépasse le reste à payer.",
+        "dateRequired": "Saisissez la date du paiement.",
+        "dateInvalid": "Date invalide.",
+        "methodRequired": "Choisissez le moyen de paiement."
+      },
+      "errors": {
+        "notFound": "Cette facture est introuvable. Elle a peut-être été supprimée."
+      }
+    },
+    "cancelDevis": {
+      "title": "Annulation",
+      "intro": "Un devis émis peut être annulé tant qu'aucune facture n'a été établie à partir de lui.",
+      "button": "Annuler le devis",
+      "question": "Annuler ce devis ?",
+      "consequence": "L'annulation est définitive : le devis garde son numéro et ne pourra plus être utilisé.",
+      "confirm": "Confirmer l'annulation",
+      "confirming": "Annulation…",
+      "back": "Retour",
+      "errors": {
+        "notFound": "Ce devis est introuvable. Il a peut-être été supprimé."
+      }
     }
   }
 }
