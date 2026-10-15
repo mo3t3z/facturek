@@ -161,18 +161,51 @@ so the rule stays unbroken.
 
 ## Part 3. Decisions to take
 
-| # | Question | Proposal |
-|---|---|---|
-| R-1 | A member prepares, only owner/admin issue, record payments and cancel | Yes |
-| R-2 | A member may convert a devis into a draft facture | Yes (it only creates a draft) |
-| R-3 | Refusal code DF026 for a role that is not allowed | Yes |
-| R-4 | Invitations by a link the inviter copies, no e-mail sent by the app (for now) | Yes |
-| R-5 | An invitation is for ONE e-mail address and must be accepted by that confirmed address, within 7 days, once | Yes |
-| R-6 | Admin may invite members only; nobody is invited as owner (ownership is transferred) | Yes |
-| R-7 | Several organizations per user, with a switch in the header | Yes |
-| R-8 | The current organization is stored in `profiles.current_organization_id`, not in localStorage | Yes |
-| R-9 | Account deletion is out of this sprint | Yes |
+The developer approved the direction on 2026-10-15 with conditions, and asked for the exact
+content of each decision before the final approval. Conditions, as given:
+- permissions enforced in PostgreSQL (RLS, column privileges, functions), never only in the
+  screens; direct table access and changes to issued documents checked too;
+- invitations by link for the MVP; sending by e-mail later WITHOUT changing the data model;
+- `profiles.current_organization_id` validated by the server, isolation kept everywhere;
+- exactly ONE active owner per organization; atomic, safe transfer; no admin can make
+  itself owner;
+- automated tests of permissions, non-regression and multi-tenant isolation; existing
+  features preserved.
 
-Unknown and NOT assumed: whether Tunisian rules require a named person (and which role)
-to sign or issue a facture. If they do, R-1 may need a stricter rule. To ask the
-accountant along with the other questions.
+| # | Decision (exact content) | Enforced by | Changes for existing users |
+|---|---|---|---|
+| R-1 | Issuing a document (`finalize_document`), recording a payment (`record_payment`) and cancelling a devis (`cancel_devis`) are allowed to `owner` and `admin` only. A `member` gets DF026. Clients, drafts and lines stay open to every member. | The three functions (`has_org_role`), after the membership check so another organization's document still answers DF001. Issued documents stay frozen for every role (triggers, unchanged). | None today: every existing account is the owner of its own organization. |
+| R-2 | Converting a devis into a draft facture (`convert_devis_to_facture`) stays open to every member: it only creates a draft that an owner/admin must issue. | The function (membership only, unchanged). | None. |
+| R-3 | One code, DF026, means "your role does not allow this action", with a French message. Tests and screens can tell it from 42501 (no access) and DF001 (not found). | `CLAUDE.md` table, `errorMessageKey()`, translations. | None. |
+| R-4 | Invitations are delivered by a link the inviter copies (MVP). The table keeps everything an e-mail sender will need later (address, organization, role, expiry, state): adding e-mails later is a new sender, not a new model. | `organization_invitations` + SECURITY DEFINER functions; no API write on the table. | None. |
+| R-5 | An invitation: ONE e-mail address (stored in lower case); the token is random, shown once, stored only as its SHA-256 hash; valid 7 days; usable once; revocable by owner/admin; accepted only by a signed-in user whose CONFIRMED e-mail is that address, after pressing a button. Every invalid case gives the same error (DF027). An address that is already a member gets DF028. | `accept_invitation()` in one transaction, row locked; concurrency test (two accepts at once: one membership). | None. |
+| R-6 | Who invites: the owner may invite `admin` or `member`; an admin may invite `member` only; a member invites nobody. Nobody is ever invited as `owner`. | `create_invitation()`; CHECK on the table (`role in ('admin','member')`). | None. |
+| R-7 | A user may belong to several organizations; the header shows the current one and, when there are several, a switch. Every query still names `organization_id`; RLS still decides. | Unchanged RLS; the switch only changes which organization the screens ask for. | Users with one organization see nothing new. |
+| R-8 | The current organization is stored in `profiles.current_organization_id`, written ONLY through a function that checks the caller is a member of it (server validation). If the caller stops being a member, the app falls back to the first membership. No `localStorage`. | `set_current_organization()` SECURITY DEFINER; the column is not writable by the API role. | New nullable column; NULL means "first membership", as today. |
+| R-9 | Account deletion is out of this sprint (issued documents are legal records). | Nothing built. | None. |
+| R-10 | Exactly ONE owner per organization, for every role. Ownership changes only by `transfer_ownership(org, user)`, called by the current owner: in one transaction the target member becomes owner and the caller becomes admin. Nobody can promote anyone to owner otherwise, and an admin can never make itself owner. | A deferrable EXCLUDE constraint (one `owner` row per organization, checked at commit so the swap can happen in one transaction); the role-change policy stays owner-only and refuses `owner` as a new role; the last-owner trigger (DF020) stays. | Every organization has exactly one owner today (one account each, checked before the migration). |
+
+R-10 is new: the first draft allowed several owners (the last-owner rule implied it). It
+follows the condition "a single active owner".
+
+### Impacts identified
+
+- The three functions of R-1 change behaviour for a `member` only; no `member` exists yet
+  (no invitation exists), so nobody loses an action today.
+- Tests that call these functions as a member must expect DF026; the e2e and concurrency
+  scripts run as owners and are unaffected.
+- Screens: buttons a member cannot use are replaced by a sentence; the settings forms
+  become read-only for whoever cannot save them (today they fail on save).
+- R-10 needs a check before its migration that no organization has two owners, and changes
+  the role-change rule (an owner can no longer name a second owner directly).
+- Unknown and NOT assumed: whether Tunisian rules require a named person (and which role)
+  to issue a facture. If they do, R-1 may need a stricter rule. To ask the accountant.
+
+### What R1 contains (and nothing more)
+
+DF026 in `finalize_document`, `record_payment`, `cancel_devis`; pgTAP for each role on each
+function and for direct table access (a member still cannot write `status`, `number`,
+snapshots, totals, payments, or any column of an issued document); `useMyRole()`; buttons
+replaced for members; read-only settings for those who cannot save; Vitest; the full test
+suite; a browser check. R2 to R5 wait for a separate approval. Nothing is applied to any
+remote database.
