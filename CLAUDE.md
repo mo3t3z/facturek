@@ -30,6 +30,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 - `npm run test:e2e-items` – lines of a document through the LOCAL Auth/REST APIs: numerics
   as text both ways, RLS isolation, what an issued document refuses, and `computeTotals`
   compared with Postgres on the stored lines (Node `--experimental-strip-types`, no dependency)
+- `npm run test:e2e-payments` – payments and cancelling a devis through the LOCAL Auth/REST
+  APIs: no direct INSERT, amount as text (a JSON number is DF024), DF018, automatic `paid`,
+  DF021, isolation (Node `--experimental-strip-types`: it uses `paymentState`)
 - `npm run db:types` – regenerate `src/types/database.types.ts`
 - `npm run test:coverage` – money module tests with coverage; fails below 100 % of
   statements, branches, functions and lines of `src/lib/money`
@@ -214,8 +217,8 @@ introduced.
 - P2d (stored totals, `finalize_document(uuid, text)`, issuing from the screen, issued
   view) is finished and merged. It was checked in a browser on 2026-10-14 as page text
   only: the layout has never been seen.
-- P2e1 (payments and status in the database) is built; P2e2 (plumbing) and P2e3 (screens)
-  remain. `docs/p2e-design.md` is the P2e design.
+- P2e1 (database) and P2e2 (plumbing: payloads, `paymentsApi.ts`, messages, e2e) are
+  built; P2e3 (screens) remains. `docs/p2e-design.md` is the P2e design.
 - `docs/phase2-plan.md` is the historical plan; `docs/p2d-design.md` is the P2d design.
 
 ### Auth and the browser (SPA trade-offs)
@@ -267,6 +270,9 @@ introduced.
   the last four). A test checks the exact keys; status, number and year are never sent.
   The arguments of `finalize_document` are built there too (`finalizePayload()`: exactly
   two keys, the expected total as a string); `finalize.test.ts` proves it is never a number.
+  So are those of `record_payment` (`paymentPayload()`: four keys, the amount as a string,
+  never zero) and `cancel_devis` (`cancelDevisPayload()`); `payments.test.ts` checks them.
+  Paid and remaining amounts come from `paymentState()` of the money module, never stored.
 - Lines of a document are saved one at a time (one row per request,
   `src/features/documents/itemsApi.ts`); every write names `organization_id` and
   `document_id`. `readItem()` (`itemSchema.ts`) is the single definition of a complete line.

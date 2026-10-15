@@ -41,7 +41,7 @@ could swallow a click (`d664661`).
 
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
-| 1 | **P2e payments and status** | P2e1 (database) DONE, merged into `main` at `1949012`. Remaining: P2e2 plumbing (payload builders, API calls, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`), P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
+| 1 | **P2e payments and status** | P2e1 (database) DONE, merged at `1949012`. P2e2 (plumbing: `paymentPayload`, `paymentsApi.ts`, `paymentState()`, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`) DONE on `checkpoint/p2e2-plumbing`, not merged yet. Remaining: P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
@@ -66,8 +66,8 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 20 files, 967 tests passed |
-| `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 306 tests; statements 73/73, lines 68/68 |
+| `npm test` | Unit and component tests (Vitest) | no | 21 files, 1004 tests passed |
+| `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 312 tests; statements 79/79, branches 29/29, functions 31/31, lines 72/72 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
 | `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments | yes | 11 files, 720 tests, PASS |
@@ -76,6 +76,7 @@ Every command exited with code 0.
 | `npm run test:e2e-settings` | Settings through REST: numerics as text, RLS isolation | yes | 5 steps, 26 checks passed |
 | `npm run test:e2e-documents` | Drafts and finalize through REST, including PGRST202 and DF009 | yes | 6 steps, 42 checks passed |
 | `npm run test:e2e-items` | Lines through REST; `computeTotals` against Postgres; stored totals | yes | 6 steps, 36 checks passed |
+| `npm run test:e2e-payments` | Payments and cancel_devis through REST: no direct INSERT, amount as text, DF018, automatic paid, DF021, isolation | yes | 7 steps, 24 checks passed |
 | `npm run money:vectors` | Regenerates the vectors from `private.compute_totals()` | yes | 22 hand-written agree, 600 generated (577 with totals, 23 over the maximum); run twice, byte-identical |
 
 Not run:
