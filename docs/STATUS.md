@@ -47,14 +47,16 @@ could swallow a click (`d664661`).
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
-| 7 | **Invitations** | Tokens, accepted by the invited user, membership created by a SECURITY DEFINER function. | Roles per action (today any member may finalize). The e2e and concurrency scripts must first record the organizations they create and delete only those. |
+| 7 | **Invitations** | Tokens, accepted by the invited user, membership created by a SECURITY DEFINER function. | Roles per action (today any member may finalize). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
 | 9 | **Deployment** | Hosted Supabase project, static host. | Two bullets in `CLAUDE.md` (security headers; hosted project configured like `supabase/config.toml`), no checklist yet. |
 
 Also open, not attached to a checkpoint yet: payment corrections by reversal entry
 (payments are append-only, DF017); ownership transfer and account deletion (the last owner
-cannot leave, DF020); the two error-handling TODOs of the P2a review (`isNetworkError()`
-treats every `TypeError` as a network error; `PGRST116` has no generic message).
+cannot leave, DF020). Done on 2026-10-15 (`checkpoint/s8-todos`): `isNetworkError()` no
+longer treats every `TypeError` as a network error; `PGRST116` has a generic message; the
+cleanup of the e2e and concurrency scripts deletes only organizations whose every member
+is a user of the run.
 
 ## c. Test inventory
 
@@ -64,7 +66,7 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 20 files, 962 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 20 files, 967 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 306 tests; statements 73/73, lines 68/68 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
