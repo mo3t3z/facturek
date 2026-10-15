@@ -211,6 +211,29 @@ select tests.authenticate_as('ivan@test.local');
 select throws_ok($$ select public.accept_invitation((select token from tok where k = 'ivan_admin')) $$, 'DF027', null, 'a revoked admin invitation: DF027');
 select tests.clear_auth();
 
+-- 5b. A NEW INVITATION NEVER REVOKES ONE THE CALLER COULD NOT REVOKE ----------------------
+-- create_invitation replaces the pending invitation of the same address. An admin may not
+-- revoke an admin invitation (above), so it may not replace one either.
+select tests.authenticate_as('alice@test.local');
+insert into tok select 'kate_admin', token, invitation_id from public.create_invitation(tests.id('org_a'), 'kate@test.local', 'admin');
+select tests.clear_auth();
+select tests.authenticate_as('carol@test.local');
+select throws_ok($$ select * from public.create_invitation(tests.id('org_a'), 'kate@test.local', 'member') $$, 'DF026', null,
+  'admin: cannot replace (so revoke) an admin invitation by inviting the same address as member');
+select tests.clear_auth();
+select ok((select revoked_at is null from public.organization_invitations where id = (select invitation_id from tok where k = 'kate_admin')),
+  'the owner''s admin invitation is still pending');
+select tests.authenticate_as('alice@test.local');
+select lives_ok($$ insert into tok select 'kate_member', token, invitation_id from public.create_invitation(tests.id('org_a'), 'kate@test.local', 'member') $$,
+  'owner: may replace it');
+select tests.clear_auth();
+select ok((select revoked_at is not null from public.organization_invitations where id = (select invitation_id from tok where k = 'kate_admin')),
+  'and then the admin invitation is revoked');
+select tests.authenticate_as('carol@test.local');
+select lives_ok($$ select * from public.create_invitation(tests.id('org_a'), 'kate@test.local', 'member') $$,
+  'admin: may still replace a MEMBER invitation of the same address');
+select tests.clear_auth();
+
 -- 6. ALREADY A MEMBER: DF028 only for a valid invitation of the caller ---------------------------
 select tests.authenticate_as('alice@test.local');
 insert into tok select 'dave_again', token, invitation_id from public.create_invitation(tests.id('org_a'), 'dave@test.local', 'admin');
