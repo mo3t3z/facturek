@@ -181,6 +181,7 @@
       "DF023": "Le total de ce document dépasse le montant maximal possible.",
       "DF024": "Le montant du paiement n'est pas valide.",
       "DF025": "Une facture a déjà été créée à partir de ce devis.",
+      "DF026": "Votre rôle dans cette entreprise ne permet pas cette action. Demandez à un propriétaire ou à un administrateur.",
       "DF040": "Cet élément ne peut pas changer d'entreprise.",
       "42501": "Vous n'avez pas les droits nécessaires pour cette action.",
       "23503": "Cet élément est utilisé ailleurs et ne peut pas être modifié ou supprimé.",
@@ -227,6 +228,10 @@
     },
     "errors": {
       "notSaved": "Rien n'a été enregistré : vous n'avez pas les droits nécessaires pour modifier ces paramètres, ou ils n'existent plus."
+    },
+    "readOnly": {
+      "organization": "Seul le propriétaire de l'entreprise peut modifier ces informations.",
+      "tax": "Seul un propriétaire ou un administrateur de l'entreprise peut modifier les taxes."
     }
   },
   "documents": {
@@ -429,7 +434,10 @@
         "taxError": "Les paramètres de taxes n'ont pas pu être chargés.",
         "timbreMissing": "Le timbre fiscal est activé mais son montant n'est pas renseigné dans les paramètres.",
         "overflow": "Les montants dépassent la valeur maximale possible.",
-        "zeroTotal": "Le total du document est nul."
+        "zeroTotal": "Le total du document est nul.",
+        "role": "Seul un propriétaire ou un administrateur de l'entreprise peut émettre un document.",
+        "roleLoading": "Vérification de votre rôle…",
+        "roleError": "Votre rôle dans l'entreprise n'a pas pu être vérifié. Rechargez la page."
       },
       "question": {
         "devis": "Émettre ce devis ?",
@@ -494,7 +502,8 @@
       },
       "errors": {
         "notFound": "Cette facture est introuvable. Elle a peut-être été supprimée."
-      }
+      },
+      "roleNotAllowed": "Seul un propriétaire ou un administrateur de l'entreprise peut enregistrer un paiement."
     },
     "cancelDevis": {
       "title": "Annulation",
@@ -507,7 +516,8 @@
       "back": "Retour",
       "errors": {
         "notFound": "Ce devis est introuvable. Il a peut-être été supprimé."
-      }
+      },
+      "roleNotAllowed": "Seul un propriétaire ou un administrateur de l'entreprise peut annuler ce devis."
     },
     "convert": {
       "title": "Facture",

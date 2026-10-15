@@ -65,6 +65,8 @@ let rpcAnswer: (name: string, args: unknown) => Result
 let rpcCalls: { name: string; args: unknown }[]
 /** The facture made from the devis (findConvertedFacture), null when there is none. */
 let converted: Record<string, unknown> | null
+/** The caller's role in the organization (organization_members.role). */
+let role: string
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -73,6 +75,7 @@ beforeEach(() => {
   payments = [{ id: 'p1', amount: '40.000', paid_at: '2026-10-05', method: 'virement' }]
   rpcCalls = []
   converted = null
+  role = 'owner'
   rpcAnswer = (name) =>
     name === 'record_payment' ? ok({ id: 'p-new', amount: 1.5 }) : name === 'convert_devis_to_facture' ? ok({ id: NEW_FACTURE, status: 'draft' }) : ok({ id: DOC, status: 'cancelled' })
   api.rpc.mockImplementation((name: string, args: unknown) => {
@@ -82,6 +85,7 @@ beforeEach(() => {
   })
   api.respond.mockImplementation((call) => {
     if (call.table === 'organizations') return ok({ id: 'org-1', name: 'Org', matricule_fiscal: null, address: null, email: null, phone: null })
+    if (call.table === 'organization_members') return ok({ role })
     if (call.table === 'documents' && 'converted_from' in call.filters) return ok(converted)
     if (call.table === 'documents' && call.filters.id === NEW_FACTURE) return ok({ ...facture, id: NEW_FACTURE, status: 'draft', number: null, year: null })
     if (call.table === 'documents') return ok(document)
@@ -388,5 +392,41 @@ describe('"Créer la facture" on a sent devis', () => {
     open()
     const region = await convertRegion()
     expect(await within(region).findByText(/La facture 2026-0007 \(Émise\) a été établie à partir de ce devis\./)).toBeInTheDocument()
+  })
+})
+
+describe('the role (R-1: payments and cancellation for owner and admin; conversion for every member)', () => {
+  it('admin: can record a payment', async () => {
+    role = 'admin'
+    open()
+    const region = await paymentsRegion()
+    expect(await within(region).findByRole('button', { name: 'Vérifier le paiement' })).toBeInTheDocument()
+  })
+
+  it('member: sees the payments, but no form, with the reason', async () => {
+    role = 'member'
+    open()
+    const region = await paymentsRegion()
+    expect(await within(region).findByText("Seul un propriétaire ou un administrateur de l'entreprise peut enregistrer un paiement.")).toBeInTheDocument()
+    expect(within(region).getByText(/05\/10\/2026 · Virement/)).toBeInTheDocument()
+    expect(within(region).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(region).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('member on a sent devis: can create the facture, cannot cancel the devis', async () => {
+    role = 'member'
+    document = { ...facture, type: 'devis', timbre_fiscal: null, net_a_payer: '100.000' }
+    open()
+    const convert = await screen.findByRole('region', { name: 'Facture' })
+    expect(within(convert).getByRole('button', { name: 'Créer la facture' })).toBeInTheDocument()
+    expect(await screen.findByText("Seul un propriétaire ou un administrateur de l'entreprise peut annuler ce devis.")).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Annulation' })).not.toBeInTheDocument()
+  })
+
+  it('admin on a sent devis: can cancel it', async () => {
+    role = 'admin'
+    document = { ...facture, type: 'devis', timbre_fiscal: null, net_a_payer: '100.000' }
+    open()
+    expect(await screen.findByRole('region', { name: 'Annulation' })).toBeInTheDocument()
   })
 })

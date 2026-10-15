@@ -9,6 +9,7 @@ import { primaryButton, secondaryButton } from '../../../components/styles'
 import { errorMessageKey } from '../../../lib/errors'
 import { formatMillimes, type Millimes, MoneyRangeError, type PaymentState, paymentState } from '../../../lib/money/money'
 import { todayInTunis } from '../../../lib/today'
+import { canCommitDocuments, useMyRole } from '../../organizations/useMyRole'
 import { documentsKey } from '../api'
 import { formatDay } from '../dates'
 import { PAYMENT_METHODS } from '../payload'
@@ -48,6 +49,10 @@ export function PaymentsPanel({ organizationId, documentId, status, netAPayer }:
   const [confirmed, setConfirmed] = useState<Confirmed | null>(null)
   const [recorded, setRecorded] = useState(false)
   const sending = useRef(false)
+
+  // R-1: only an owner or an admin records a payment (Postgres answers DF026 otherwise).
+  const myRole = useMyRole(organizationId)
+  const allowed = myRole.isSuccess && canCommitDocuments(myRole.data)
 
   const payments = useQuery({
     queryKey: paymentsKey(organizationId, documentId),
@@ -180,7 +185,11 @@ export function PaymentsPanel({ organizationId, documentId, status, netAPayer }:
 
       {status === 'paid' && <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{t('documents.payments.settled')}</p>}
 
-      {status === 'sent' && state !== null && state.remaining > 0 && !open && (
+      {status === 'sent' && state !== null && state.remaining > 0 && myRole.isSuccess && !allowed && (
+        <p role="note" className="mt-4 border-t border-slate-200 pt-4 text-sm text-slate-600">{t('documents.payments.roleNotAllowed')}</p>
+      )}
+
+      {status === 'sent' && state !== null && state.remaining > 0 && allowed && !open && (
         <form
           noValidate
           className="mt-4 border-t border-slate-200 pt-4"
@@ -219,7 +228,7 @@ export function PaymentsPanel({ organizationId, documentId, status, netAPayer }:
         </form>
       )}
 
-      {open && confirmed !== null && (
+      {open && allowed && confirmed !== null && (
         <div role="group" aria-labelledby={questionId} className="mt-4 rounded-md border border-slate-300 p-4">
           <h3 id={questionId} className="text-base font-semibold text-slate-900">
             {t('documents.payments.question')}

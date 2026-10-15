@@ -9,6 +9,7 @@ import { documentsKey } from '../api'
 import { convertDevisToFacture, convertedFactureKey, findConvertedFacture } from '../conversionApi'
 import { formatDocumentNumber, statusKey } from '../format'
 import { CancelDevisPanel } from './CancelDevisPanel'
+import { canCommitDocuments, useMyRole } from '../../organizations/useMyRole'
 
 type DevisActionsProps = {
   organizationId: string
@@ -34,6 +35,9 @@ export function DevisActions({ organizationId, devisId }: DevisActionsProps) {
   const questionId = useId()
   const [asking, setAsking] = useState(false)
   const sending = useRef(false)
+
+  // R-1: cancelling is for an owner or an admin; converting stays open to every member (R-2).
+  const myRole = useMyRole(organizationId)
 
   const converted = useQuery({
     queryKey: convertedFactureKey(organizationId, devisId),
@@ -140,7 +144,10 @@ export function DevisActions({ organizationId, devisId }: DevisActionsProps) {
         )}
       </section>
 
-      {facture === null && <CancelDevisPanel organizationId={organizationId} devisId={devisId} />}
+      {facture === null && myRole.isSuccess && canCommitDocuments(myRole.data) && <CancelDevisPanel organizationId={organizationId} devisId={devisId} />}
+      {facture === null && myRole.isSuccess && !canCommitDocuments(myRole.data) && (
+        <p role="note" className="mt-4 text-sm text-slate-600">{t('documents.cancelDevis.roleNotAllowed')}</p>
+      )}
     </>
   )
 }

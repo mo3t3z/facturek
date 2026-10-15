@@ -25,7 +25,7 @@ export function TextField({ label, hint, errorKey, ...inputProps }: TextFieldPro
         id={id}
         aria-invalid={errorKey ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className="block w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600"
+        className="block w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
         {...inputProps}
       />
       {hint && (
@@ -65,7 +65,7 @@ export function SelectField({ label, hint, errorKey, children, ...fieldProps }: 
         id={id}
         aria-invalid={errorKey ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600"
+        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
         {...fieldProps}
       >
         {children}
@@ -108,7 +108,7 @@ export function TextAreaField({ label, hint, errorKey, ...fieldProps }: TextArea
         rows={3}
         aria-invalid={errorKey ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600"
+        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-invalid:border-red-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
         {...fieldProps}
       />
       {hint && (
@@ -135,7 +135,7 @@ export function CheckboxField({ label, ...inputProps }: CheckboxFieldProps) {
       <input
         id={id}
         type="checkbox"
-        className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+        className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         {...inputProps}
       />
       <label htmlFor={id} className="text-base text-slate-900">

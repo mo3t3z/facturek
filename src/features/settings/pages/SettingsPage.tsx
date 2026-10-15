@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { canEditOrganization, canEditTaxSettings, useMyRole } from '../../organizations/useMyRole'
 import { DecimalField } from '../../../components/DecimalField'
 import { Alert, CheckboxField, SubmitButton, TextField } from '../../../components/FormControls'
 import { primaryButton } from '../../../components/styles'
@@ -30,9 +31,10 @@ const SAVE_ERRORS = { PGRST116: 'settings.errors.notSaved' }
 const FRESH = { staleTime: 0, gcTime: 0, retry: false } as const
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const titleId = useId()
   return (
-    <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <h2 className="mb-3 text-lg font-semibold text-slate-900">{title}</h2>
+    <section aria-labelledby={titleId} className="mb-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <h2 id={titleId} className="mb-3 text-lg font-semibold text-slate-900">{title}</h2>
       {children}
     </section>
   )
@@ -52,7 +54,7 @@ function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) 
   )
 }
 
-function OrganizationForm({ organization }: { organization: OrganizationDetails }) {
+function OrganizationForm({ organization, readOnly }: { organization: OrganizationDetails; readOnly: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const form = useForm<OrganizationValues>({
@@ -76,6 +78,9 @@ function OrganizationForm({ organization }: { organization: OrganizationDetails 
   return (
     <form onSubmit={form.handleSubmit((values) => save.mutate(values))} noValidate>
       <p className="mb-4 text-sm text-slate-600">{t('settings.organization.intro')}</p>
+      {readOnly && <p role="note" className="mb-4 text-sm font-medium text-slate-700">{t('settings.readOnly.organization')}</p>}
+      {/* Read-only for whoever cannot save it (RLS decides; this only avoids a useless form). */}
+      <fieldset disabled={readOnly} className="contents">
       {save.isError && <Alert kind="error">{t(errorMessageKey(save.error, SAVE_ERRORS))}</Alert>}
       {save.isSuccess && <Alert kind="success">{t('settings.saved')}</Alert>}
       <TextField
@@ -121,11 +126,14 @@ function OrganizationForm({ organization }: { organization: OrganizationDetails 
         errorKey={errors.phone?.message}
         {...form.register('phone')}
       />
-      <SubmitButton
-        label={t('settings.organization.submit')}
-        pendingLabel={t('settings.organization.submitting')}
-        pending={save.isPending}
-      />
+      </fieldset>
+      {!readOnly && (
+        <SubmitButton
+          label={t('settings.organization.submit')}
+          pendingLabel={t('settings.organization.submitting')}
+          pending={save.isPending}
+        />
+      )}
     </form>
   )
 }
@@ -139,7 +147,7 @@ function toTaxSettings(values: TaxSettingsValues): TaxSettings {
   }
 }
 
-function TaxSettingsForm({ organizationId, settings }: { organizationId: string; settings: TaxSettings }) {
+function TaxSettingsForm({ organizationId, settings, readOnly }: { organizationId: string; settings: TaxSettings; readOnly: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const form = useForm<TaxSettingsValues>({
@@ -165,6 +173,8 @@ function TaxSettingsForm({ organizationId, settings }: { organizationId: string;
       </p>
       {save.isError && <Alert kind="error">{t(errorMessageKey(save.error, SAVE_ERRORS))}</Alert>}
       {save.isSuccess && <Alert kind="success">{t('settings.saved')}</Alert>}
+      {readOnly && <p role="note" className="mb-4 text-sm font-medium text-slate-700">{t('settings.readOnly.tax')}</p>}
+      <fieldset disabled={readOnly} className="contents">
       <DecimalField
         control={form.control}
         name="default_tva_rate"
@@ -182,7 +192,8 @@ function TaxSettingsForm({ organizationId, settings }: { organizationId: string;
         hint={t('settings.tax.timbreAmountHint')}
         errorKey={errors.timbre_fiscal?.message}
       />
-      <SubmitButton label={t('settings.tax.submit')} pendingLabel={t('settings.tax.submitting')} pending={save.isPending} />
+      </fieldset>
+      {!readOnly && <SubmitButton label={t('settings.tax.submit')} pendingLabel={t('settings.tax.submitting')} pending={save.isPending} />}
     </form>
   )
 }
@@ -190,6 +201,9 @@ function TaxSettingsForm({ organizationId, settings }: { organizationId: string;
 export function SettingsPage() {
   const { t } = useTranslation()
   const organization = useOrganization()
+  // Until the role is known, both forms are read-only: the safe side.
+  const myRole = useMyRole(organization.id)
+  const role = myRole.isSuccess ? myRole.data : null
 
   const details = useQuery({
     queryKey: organizationDetailsKey(organization.id),
@@ -210,14 +224,14 @@ export function SettingsPage() {
         {details.isPending && <p role="status">{t('app.loading')}</p>}
         {details.isError && <LoadError error={details.error} onRetry={() => void details.refetch()} />}
         {details.isSuccess && details.data === null && <Alert kind="error">{t('settings.loadError')}</Alert>}
-        {details.isSuccess && details.data !== null && <OrganizationForm organization={details.data} />}
+        {details.isSuccess && details.data !== null && <OrganizationForm organization={details.data} readOnly={!canEditOrganization(role)} />}
       </Section>
 
       <Section title={t('settings.tax.title')}>
         {tax.isPending && <p role="status">{t('app.loading')}</p>}
         {tax.isError && <LoadError error={tax.error} onRetry={() => void tax.refetch()} />}
         {tax.isSuccess && tax.data === null && <Alert kind="error">{t('settings.loadError')}</Alert>}
-        {tax.isSuccess && tax.data !== null && <TaxSettingsForm organizationId={organization.id} settings={tax.data} />}
+        {tax.isSuccess && tax.data !== null && <TaxSettingsForm organizationId={organization.id} settings={tax.data} readOnly={!canEditTaxSettings(role)} />}
       </Section>
     </>
   )

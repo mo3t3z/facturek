@@ -63,6 +63,8 @@ const user = userEvent.setup({ delay: null })
 let organization: Record<string, unknown>
 let tax: Record<string, unknown> | null
 let override: (call: Call) => Result | undefined
+/** The caller's role in the organization (organization_members.role). */
+let role: string
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -71,11 +73,13 @@ beforeEach(() => {
   // A new account: nothing is set.
   tax = { organization_id: 'org-1', default_tva_rate: null, timbre_enabled: false, timbre_fiscal: null }
   override = () => undefined
+  role = 'owner'
   api.rpc.mockResolvedValue(ok('org-1'))
   api.respond.mockImplementation((call) => {
     const special = override(call)
     if (special) return special
     if (call.op === 'update') return ok({ id: 'org-1' })
+    if (call.table === 'organization_members') return ok({ role })
     return ok(call.table === 'organizations' ? organization : tax)
   })
 })
@@ -422,5 +426,42 @@ describe('the amount and rate input', () => {
       timbre_enabled: true,
       timbre_fiscal: '999999999.999',
     })
+  })
+})
+
+describe('the settings follow the role (R-1; RLS decides, the screen only avoids useless forms)', () => {
+  const sections = async () => ({
+    identity: await screen.findByRole('region', { name: 'Votre entreprise' }),
+    tax: await screen.findByRole('region', { name: 'Taxes' }),
+  })
+  const disabledFields = (region: HTMLElement) => within(region).getAllByRole('textbox').every((field) => field.matches(':disabled'))
+
+  it('owner: both forms can be saved', async () => {
+    open()
+    const { identity, tax } = await sections()
+    expect(await within(identity).findByRole('button', { name: "Enregistrer l'entreprise" })).toBeInTheDocument()
+    expect(await within(tax).findByRole('button', { name: 'Enregistrer les taxes' })).toBeInTheDocument()
+  })
+
+  it('admin: the identity is read-only, the taxes can be saved', async () => {
+    role = 'admin'
+    open()
+    const { identity, tax } = await sections()
+    expect(await within(identity).findByText("Seul le propriétaire de l'entreprise peut modifier ces informations.")).toBeInTheDocument()
+    expect(disabledFields(identity)).toBe(true)
+    expect(within(identity).queryByRole('button', { name: "Enregistrer l'entreprise" })).not.toBeInTheDocument()
+    expect(await within(tax).findByRole('button', { name: 'Enregistrer les taxes' })).toBeInTheDocument()
+  })
+
+  it('member: both are read-only, with the reason, and nothing can be sent', async () => {
+    role = 'member'
+    open()
+    const { identity, tax } = await sections()
+    expect(await within(tax).findByText("Seul un propriétaire ou un administrateur de l'entreprise peut modifier les taxes.")).toBeInTheDocument()
+    expect(disabledFields(identity)).toBe(true)
+    expect(disabledFields(tax)).toBe(true)
+    expect(within(tax).getByRole('checkbox')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Enregistrer/ })).not.toBeInTheDocument()
+    expect(api.calls.filter((call) => call.op === 'update')).toEqual([])
   })
 })

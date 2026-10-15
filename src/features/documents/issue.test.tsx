@@ -97,6 +97,8 @@ let override: (call: Call) => Result | undefined
 /** What finalize_document answers; it may also change the stored document, like Postgres does. */
 let finalize: (args: unknown) => Result | Promise<Result>
 let finalizeCalls: unknown[]
+/** The caller's role in the organization (organization_members.role). */
+let role: string | null
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -107,6 +109,7 @@ beforeEach(() => {
   organization = { id: 'org-1', name: 'Atelier Amel', matricule_fiscal: '7654321/B/M/000', address: '3 avenue Habib Bourguiba', email: null, phone: null }
   override = () => undefined
   finalizeCalls = []
+  role = 'owner'
   finalize = () => {
     document = { ...issued }
     return ok({ ...issued, net_a_payer: 1190.6 })
@@ -120,6 +123,7 @@ beforeEach(() => {
     const special = override(call)
     if (special) return special
     if (call.table === 'organizations') return ok(organization)
+    if (call.table === 'organization_members') return ok(role === null ? null : { role })
     if (call.table === 'clients') return ok([{ id: CLIENT, name: 'Société Élan', matricule_fiscal: null, address: null, email: null, phone: null }])
     if (call.table === 'tax_settings') return ok(tax)
     if (call.table === 'payments') return ok([])
@@ -736,5 +740,38 @@ describe('readStoredTotals', () => {
     [{ tva_breakdown: '[]' }],
   ])('returns null, never a partial result, for %j', (broken) => {
     expect(readStoredTotals({ ...columns, ...broken })).toBeNull()
+  })
+})
+
+describe('the role (R-1: a member prepares, an owner or admin issues)', () => {
+  it('admin: the button is enabled', async () => {
+    role = 'admin'
+    open()
+    const region = await panel()
+    await waitFor(() => expect(issueButton(region)).toBeEnabled())
+  })
+
+  it('member: the button is disabled, with the reason, and nothing can be sent', async () => {
+    role = 'member'
+    open()
+    const region = await panel()
+    expect(await within(region).findByText("Seul un propriétaire ou un administrateur de l'entreprise peut émettre un document.")).toBeInTheDocument()
+    expect(issueButton(region)).toBeDisabled()
+    expect(finalizeCalls).toEqual([])
+  })
+
+  it('a role that cannot be read blocks the button too (the safe side)', async () => {
+    role = null
+    open()
+    const region = await panel()
+    expect(await within(region).findByText("Votre rôle dans l'entreprise n'a pas pu être vérifié. Rechargez la page.")).toBeInTheDocument()
+    expect(issueButton(region)).toBeDisabled()
+  })
+
+  it('DF026 from Postgres still has its own French message (if the screen and the database disagree)', async () => {
+    finalize = () => failed(dbError('DF026'))
+    const { region, group } = await openConfirmation()
+    await user.click(within(group).getByRole('button', { name: "Confirmer l'émission" }))
+    expect(await within(region).findByRole('alert')).toHaveTextContent(french('DF026') as string)
   })
 })

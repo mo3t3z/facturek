@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { canCommitDocuments, useMyRole } from '../../organizations/useMyRole'
 import { Alert, TextLink } from '../../../components/FormControls'
 import { primaryButton, secondaryButton } from '../../../components/styles'
 import { errorMessageKey } from '../../../lib/errors'
@@ -78,6 +79,7 @@ export function IssuePanel(props: IssuePanelProps) {
   const { organizationId, documentId, documentType, totals, timbre } = props
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const myRole = useMyRole(organizationId)
   const reasonsId = useId()
   const questionId = useId()
   // The totals the open confirmation was opened with (null: no confirmation is open).
@@ -128,7 +130,11 @@ export function IssuePanel(props: IssuePanelProps) {
   }, [editing, resetIssue])
 
   // Why the document cannot be issued yet, in the order the user would fix them.
+  // The role comes first: nothing else matters to a member (R-1; Postgres answers DF026).
   const reasons: string[] = []
+  if (myRole.isPending) reasons.push('documents.issue.blocked.roleLoading')
+  else if (myRole.isError) reasons.push('documents.issue.blocked.roleError')
+  else if (!canCommitDocuments(myRole.data)) reasons.push('documents.issue.blocked.role')
   if (!props.hasClient) reasons.push('documents.issue.blocked.noClient')
   if (props.lineCount === 0) reasons.push('documents.issue.blocked.noLines')
   if (props.headerDirty) reasons.push('documents.issue.blocked.header')
