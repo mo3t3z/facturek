@@ -172,13 +172,17 @@ commit;
 // documents, payments or the last owner of an organization) nor the foreign-key triggers.
 // So nothing cascades and every table is emptied explicitly, children first. The
 // organizations to remove are found through the test users' memberships, which also covers
-// any organization a failing scenario created by mistake. SET LOCAL ends with the transaction.
+// any organization a failing scenario created by mistake, but only those with no other member. SET LOCAL ends with the transaction.
 const userList = allUsers.map((id) => `'${id}'`).join(', ')
 const cleanupSql = `
 begin;
 set local session_replication_role = replica;
+-- Only the organizations whose EVERY member is a user of this run (see the e2e scripts).
 create temp table doomed_orgs on commit drop as
-  select distinct m.organization_id as id from public.organization_members m where m.user_id in (${userList});
+  select distinct m.organization_id as id from public.organization_members m
+  where m.user_id in (${userList})
+    and not exists (select 1 from public.organization_members other
+                    where other.organization_id = m.organization_id and other.user_id not in (${userList}));
 delete from public.payments where organization_id in (select id from doomed_orgs);
 delete from public.document_items where organization_id in (select id from doomed_orgs);
 delete from public.documents where organization_id in (select id from doomed_orgs);
@@ -186,6 +190,7 @@ delete from public.document_counters where organization_id in (select id from do
 delete from public.clients where organization_id in (select id from doomed_orgs);
 delete from public.tax_settings where organization_id in (select id from doomed_orgs);
 delete from public.organization_members where organization_id in (select id from doomed_orgs);
+delete from public.organization_members where user_id in (${userList});
 delete from public.organizations where id in (select id from doomed_orgs);
 delete from public.profiles where id in (${userList});
 delete from auth.users where id in (${userList});

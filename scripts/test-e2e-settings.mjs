@@ -249,10 +249,18 @@ begin;
 set local session_replication_role = replica;
 create temp table doomed_users on commit drop as
   select id from auth.users where email in (${emailList});
+-- Only the organizations whose EVERY member is a user of this run: an organization that also
+-- has someone else (a real account, once invitations exist) is never deleted, only this
+-- run's memberships in it are.
 create temp table doomed_orgs on commit drop as
-  select distinct organization_id as id from public.organization_members where user_id in (select id from doomed_users);
+  select distinct m.organization_id as id from public.organization_members m
+  where m.user_id in (select id from doomed_users)
+    and not exists (select 1 from public.organization_members other
+                    where other.organization_id = m.organization_id
+                      and other.user_id not in (select id from doomed_users));
 delete from public.tax_settings where organization_id in (select id from doomed_orgs);
 delete from public.organization_members where organization_id in (select id from doomed_orgs);
+delete from public.organization_members where user_id in (select id from doomed_users);
 delete from public.organizations where id in (select id from doomed_orgs);
 delete from public.profiles where id in (select id from doomed_users);
 delete from auth.refresh_tokens where user_id in (select id::text from doomed_users);
