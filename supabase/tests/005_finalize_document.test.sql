@@ -53,7 +53,12 @@ select results_eq(
   $$ select 'sent', 1, extract(year from private.today_tunis())::int, private.today_tunis() $$,
   'it is sent, and its year and issue_date are today in Africa/Tunis');
 select is(private.today_tunis(), (now() at time zone 'Africa/Tunis')::date, 'today_tunis() is the current date in Africa/Tunis');
-select is(tests.finalize_as('dave@test.local', tests.id('f2'), '100.000'), 2, 'the second facture gets 2 (a plain member may finalize)');
+-- R-1: a plain member prepares, an owner or admin issues.
+select tests.authenticate_as('dave@test.local');
+select throws_ok($$ select public.finalize_document(tests.id('f2'), '100.000') $$, 'DF026', null, 'a plain member may NOT finalize (R-1): DF026');
+select tests.clear_auth();
+select is((select status::text from public.documents where id = tests.id('f2')), 'draft', 'the refused document is still a draft');
+select is(tests.finalize_as('alice@test.local', tests.id('f2'), '100.000'), 2, 'the second facture gets 2: the refused call consumed no number');
 select is(tests.finalize_as('carol@test.local', tests.id('d1'), '100.000'), 1, 'devis have their own sequence (an admin may finalize)');
 select is(tests.finalize_as('bob@test.local', tests.id('fb1'), '100.000'), 1, 'another organization has its own sequence');
 
