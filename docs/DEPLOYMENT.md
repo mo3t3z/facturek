@@ -52,6 +52,16 @@ Configured like `supabase/config.toml` (the local reference). In the dashboard:
 - [ ] The service role key stays in the dashboard. It is never copied into the app, a
       `VITE_` variable, the host's settings for the front end, or a file.
 
+### Order of the roles work (R1 before any multi-user feature)
+
+- [ ] The R1 protections (migration `20261015180001_roles_per_action.sql`: DF026 in
+      `finalize_document`, `record_payment`, `cancel_devis`) are applied to the hosted
+      database BEFORE any feature that lets a second person into an organization
+      (invitations, R2/R3) is exposed. Pushing all migrations in order guarantees it; never
+      deploy an invitation feature on a database that lacks R1.
+- [ ] R-10 (exactly one owner) is implemented and pushed before ownership can be shared or
+      transferred (R5).
+
 ## 3. Front end (static host)
 
 - [ ] Host chosen. Any static host works (Netlify, Cloudflare Pages, Vercel...). The SPA

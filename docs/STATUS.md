@@ -47,7 +47,7 @@ could swallow a click (`d664661`).
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Design DRAFT in `docs/avoir-print-design.md` (option proposed: a separate `avoir` type with its own series), blocked on questions C1 to C6. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Design DRAFT in `docs/avoir-print-design.md` (browser print first), blocked on questions C7 to C12. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
-| 7 | **Invitations and roles** | Design approved 2026-10-15 (`docs/roles-design.md`, R-1 to R-10). R1 roles per action DONE on `checkpoint/r1-roles`, not merged yet (migration `20261015180001`, DF026). R2 to R5 (invitations, several organizations, ownership transfer, leaving) NOT started: separate approval needed. | Whether a facture must be issued by a named person (accountant). |
+| 7 | **Invitations and roles** | Design approved 2026-10-15 (`docs/roles-design.md`). R1 roles per action MERGED into `main` at `f8b9f91` (migration `20261015180001`, DF026), applied to the LOCAL database only, NOT deployed. R-10 (exactly one owner, transfer only through `transfer_ownership()`) is APPROVED but NOT implemented: today an owner can still name a second owner. R2 to R5 (invitations, several organizations, ownership transfer, leaving) NOT started: waiting for a separate approval. | Whether a facture must be issued by a named person (accountant). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
 | 9 | **Deployment** | Prepared on `checkpoint/deploy-prep`, not merged yet: checklist `docs/DEPLOYMENT.md`, security headers (`src/lib/securityHeaders.ts`, `dist/_headers`, checked under `npm run preview`). Nothing remote. | The accountant gate; the replay of every migration on an empty database (`db:reset`, needs consent); the host. |
 
@@ -184,12 +184,18 @@ the same net à payer, and the devis then showing only a link to it (no conversi
 cancellation), at desktop width and at exactly 375 px (page width 375).
 
 R1 (roles per action), checked on 2026-10-15 with the two accounts above. As the member,
-in the browser: the issue button disabled with its reason, no payment form (reason shown),
-settings read-only (8 fields disabled and greyed, no save button); through the REST API
+in the browser. With a SCREENSHOT: the payments block of the issued facture (no form, the
+reason shown). WITHOUT a screenshot (the browser pane stopped drawing; screenshots came back
+blank), checked through the page's DOM only, NOT seen: the issue button disabled with its
+reason (button state and text read), the settings read-only (8 fields `:disabled`, no save
+button, the grey background and not-allowed cursor read from the computed style). Through
+the REST API
 with the member's own token (what a modified front end could send): finalize_document,
 record_payment and cancel_devis -> DF026; PATCH status, POST payments -> 42501; PATCH an
 issued facture, tax_settings, organizations -> 0 rows; convert_devis_to_facture -> 200
-(R-2); no data changed. As the owner: every button and form still there.
+(R-2); no data changed. As the owner (DOM only, no screenshot): every button and form
+still there (8 enabled fields and both save buttons in Paramètres, "Émettre" enabled,
+the payment form present). The layout of these member screens is still to be SEEN.
 
 Still pending:
 - An organization without a tax settings row, on a FACTURE draft (needs deleting that row
