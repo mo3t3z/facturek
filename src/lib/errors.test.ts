@@ -73,6 +73,23 @@ describe('errorMessageKey', () => {
     expect(errorMessageKey({ name: 'AuthRetryableFetchError', message: 'x', status: 0 })).toBe(NETWORK_ERROR_KEY)
   })
 
+  it.each(['Failed to fetch', 'NetworkError when attempting to fetch resource.', 'Load failed'])(
+    'maps the TypeError fetch() throws in each browser: %s',
+    (message) => {
+      expect(errorMessageKey(new TypeError(message))).toBe(NETWORK_ERROR_KEY)
+    },
+  )
+
+  it('does not call a TypeError of our own code a network error', () => {
+    expect(errorMessageKey(new TypeError("Cannot read properties of undefined (reading 'id')"))).toBe(UNKNOWN_ERROR_KEY)
+  })
+
+  it('has a generic French message for PGRST116 (an update or a read that found no row)', () => {
+    const key = errorMessageKey(dbError('PGRST116'))
+    expect(key).toBe('errors.db.PGRST116')
+    expect(typeof translation(key)).toBe('string')
+  })
+
   it.each([
     dbError('XX000', 'relation "public.secret_table" does not exist'),
     dbError('42P01', 'select * from auth.users'),

@@ -181,6 +181,7 @@
       "23503": "Cet élément est utilisé ailleurs et ne peut pas être modifié ou supprimé.",
       "23505": "Cet élément existe déjà.",
       "23514": "Certaines valeurs saisies ne sont pas valides.",
+      "PGRST116": "Cet élément est introuvable ou n'est plus modifiable. Rechargez la page.",
       "PGRST301": "Votre session a expiré. Reconnectez-vous."
     }
   },

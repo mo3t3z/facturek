@@ -29,6 +29,7 @@ const DB_CODES = new Set([
   '23503', // foreign key
   '23505', // unique
   '23514', // check constraint
+  'PGRST116', // .single() found no row: gone, or hidden by RLS (PostgREST)
   'PGRST301', // JWT expired or invalid (PostgREST)
 ])
 
@@ -41,9 +42,12 @@ function readString(source: object, field: string): string | null {
   return typeof value === 'string' ? value : null
 }
 
-/** True when the request never got an answer (offline, server down, CORS, timeout). */
+/**
+ * True when the request never got an answer (offline, server down, CORS, timeout).
+ * fetch() throws a TypeError, but so does a bug in our own code ("Cannot read properties of
+ * undefined"), so the type alone proves nothing: the message must be one of fetch's.
+ */
 export function isNetworkError(error: unknown): boolean {
-  if (error instanceof TypeError) return true // what fetch() throws
   if (typeof error !== 'object' || error === null) return false
   const name = readString(error, 'name')
   if (name === 'AuthRetryableFetchError') return true
