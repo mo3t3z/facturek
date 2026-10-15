@@ -41,7 +41,7 @@ could swallow a click (`d664661`).
 
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
-| 1 | **P2e payments and status** | P2e1 (database) DONE, merged at `1949012`. P2e2 (plumbing: `paymentPayload`, `paymentsApi.ts`, `paymentState()`, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`) DONE, merged at `8ff7c6c`. Remaining: P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
+| 1 | **P2e payments and status** | DONE on `checkpoint/p2e3-screens` (P2e1 merged at `1949012`, P2e2 at `8ff7c6c`), P2e3 not merged yet: payments block on an issued facture, "Annuler le devis". Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
@@ -66,7 +66,7 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 21 files, 1004 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 23 files, 1030 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 312 tests; statements 79/79, branches 29/29, functions 31/31, lines 72/72 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
@@ -164,6 +164,17 @@ cannot be reached either: the button is disabled first (covered by `issue.test.t
 Bug found and fixed: a refusal stayed on screen after the header was corrected; it now
 goes as soon as the header or a line is edited.
 
+P2e3, checked in a browser on 2026-10-15 with screenshots, on the account above, at desktop
+width and at about 404 px (the pane was being resized, so not exactly 375 px; no horizontal
+overflow): the payments block of a sent facture, the form (empty amount, today proposed, no
+method), the confirmation (amount, day, method, remaining before and after; focus on
+"Annuler"), a full payment that turned the facture to "Payée" with no form left, and a devis
+issued then cancelled through "Annuler le devis" (focus on "Retour"). Found there: a click
+on the button that opens a confirmation can land on its confirm button once it appears; a
+payment of 20,500 was recorded that way. Fixed for the three confirmations: the second click
+of a double click (detail 2) is ignored (tests in issue.test.tsx and paymentsPanel.test.tsx).
+Not seen: DF018 and DF021 on the real screen (covered by component and e2e tests).
+
 Still pending:
 - An organization without a tax settings row, on a FACTURE draft (needs deleting that row
   by hand on a test account).
@@ -180,7 +191,7 @@ Passwords are never written in this repository's tracked files.
 | `p2a-manual-20261013@example.test` | P2a Manual Renommée | 2026-10-13 | 1 draft facture; timbre enabled |
 | `p2c3-manual-20261013@example.test` | Test Manuel P2c3 | 2026-10-13 | The account for manual checks. Issued and permanent: Facture 2026-0001 (23,800), Facture 2026-0002 (120,000, with a timbre of 1,000), Devis 2026-0001 (190,400, issued by the bug fixed in `78a6461`). 1 draft devis. |
 | `moetez.ayed404@gmail.com` | moetez ayed | 2026-10-14 | No document. Created by the developer; no fingerprint recorded for it. |
-| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Layout and refusal checks: 1 client, Factures 2026-0001 (238,000) and 2026-0002 (59,500), issued. Throwaway. |
+| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Throwaway. Facture 2026-0001 (238,000) PAID by one payment; Facture 2026-0002 (59,500) partly paid: 20,500 (recorded by a click of mine that landed on the confirm button during the browser check, see section f); Devis 2026-0001 (10,000) cancelled. |
 
 The fingerprint is `md5` of the user id, organization id, role and organization creation
 time of the reference account. It changes if that account is re-created, which is what a

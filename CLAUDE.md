@@ -217,8 +217,8 @@ introduced.
 - P2d (stored totals, `finalize_document(uuid, text)`, issuing from the screen, issued
   view) is finished and merged. It was checked in a browser on 2026-10-14 as page text
   only: the layout has never been seen.
-- P2e1 (database) and P2e2 (plumbing: payloads, `paymentsApi.ts`, messages, e2e) are
-  built; P2e3 (screens) remains. `docs/p2e-design.md` is the P2e design.
+- P2e (payments and status: database, plumbing, screens) is built. `docs/p2e-design.md`
+  is its design. `docs/p2e-design.md` is the P2e design.
 - `docs/phase2-plan.md` is the historical plan; `docs/p2d-design.md` is the P2d design.
 
 ### Auth and the browser (SPA trade-offs)
@@ -305,6 +305,15 @@ introduced.
   (`sameTotals` in `IssuePanel`). Commit `78a6461` is the bug that taught this: lines were
   reloaded behind an open confirmation, its amounts changed in place, and a click issued a
   devis for 190,400 that the user had not seen.
+- Payments on an issued facture (`PaymentsPanel`): paid and remaining come from
+  `paymentState()` on the STORED net à payer and the payments read as text; the amount is
+  typed in `<DecimalField>`, empty by default; the method has no default; the day proposed
+  is `todayInTunis()` (`src/lib/today.ts`, the one place a moment becomes a day). The
+  confirmation is bound to the remaining amount it was opened with. "Annuler le devis"
+  (`CancelDevisPanel`) asks first and lands on "Retour".
+- The confirm button of an irreversible confirmation ignores a click whose `detail` is
+  above 1: the second click of a double click on the button that opened it must not
+  confirm what the user has not read (found in the browser during P2e3).
 - Known limit: DF009 compares only `net_a_payer`, not the content of the document. Two
   edits made elsewhere that keep the net à payer equal pass the server check; only the UI
   guard (`sameTotals`, which also compares HT, TVA, timbre and the table by rate) catches
