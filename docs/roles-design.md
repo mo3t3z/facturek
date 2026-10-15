@@ -1,8 +1,10 @@
 # Design: roles per action and invitations (Sprint 12, design only)
 
-Written 2026-10-15 on `checkpoint/roles-design` from `main` (`d3794e0`). Nothing here is
-built. It waits for the developer's approval of the decisions in Part 3, like
-`docs/p2e-design.md` did.
+Written 2026-10-15 on `checkpoint/roles-design` from `main` (`d3794e0`).
+
+**Approved 2026-10-15:** R-1 to R-9 as written; R-10 with the correction below (never zero
+owner). GO for R1 only. R2 to R5 need a separate approval. No remote database, no
+deployment, no change to the legal invoicing rules without verification.
 
 Sources: catalog queries on the local database (rebuilt from empty the same day),
 `CLAUDE.md`, `docs/STATUS.md`, `src/`.
@@ -183,10 +185,26 @@ content of each decision before the final approval. Conditions, as given:
 | R-7 | A user may belong to several organizations; the header shows the current one and, when there are several, a switch. Every query still names `organization_id`; RLS still decides. | Unchanged RLS; the switch only changes which organization the screens ask for. | Users with one organization see nothing new. |
 | R-8 | The current organization is stored in `profiles.current_organization_id`, written ONLY through a function that checks the caller is a member of it (server validation). If the caller stops being a member, the app falls back to the first membership. No `localStorage`. | `set_current_organization()` SECURITY DEFINER; the column is not writable by the API role. | New nullable column; NULL means "first membership", as today. |
 | R-9 | Account deletion is out of this sprint (issued documents are legal records). | Nothing built. | None. |
-| R-10 | Exactly ONE owner per organization, for every role. Ownership changes only by `transfer_ownership(org, user)`, called by the current owner: in one transaction the target member becomes owner and the caller becomes admin. Nobody can promote anyone to owner otherwise, and an admin can never make itself owner. | A deferrable EXCLUDE constraint (one `owner` row per organization, checked at commit so the swap can happen in one transaction); the role-change policy stays owner-only and refuses `owner` as a new role; the last-owner trigger (DF020) stays. | Every organization has exactly one owner today (one account each, checked before the migration). |
+| R-10 | Exactly ONE owner per organization, at every moment, for every role: never two, never zero. (a) No direct path changes the owner: the owner's membership cannot be deleted, and its role cannot be changed, and no other membership can be given the role `owner`, by ANY role (trigger, not only RLS). (b) Ownership changes ONLY through `transfer_ownership(org, user)`, called by the current owner: the target must already be a member of the SAME organization; in one transaction, with the organization row locked FOR UPDATE (two transfers at once are serialized; the second one sees the new owner and is refused), the target becomes owner and the caller becomes admin. (c) After every successful transfer there is exactly one owner (checked in the function before commit, and by the constraint). An admin can never make itself owner. | A trigger on `organization_members` that refuses any insert, update or delete that would add, remove or change an owner unless it runs inside `transfer_ownership()` (a transaction-local flag set only by that function); a deferrable EXCLUDE constraint (at most one owner, checked at commit); the existing last-owner rule (DF020) kept as a second line. Tests: zero owner (delete, demote), two owners (promote, direct insert), two simultaneous transfers (concurrency script). | Existing data checked before the migration: every organization has exactly one owner. Owners can no longer remove themselves or promote a second owner directly. |
 
 R-10 is new: the first draft allowed several owners (the last-owner rule implied it). It
-follows the condition "a single active owner".
+follows the condition "a single active owner". Corrected on 2026-10-15 at the developer's
+request: the EXCLUDE constraint alone only forbids TWO owners; the trigger and the
+transfer function above also forbid ZERO.
+
+### Security requirements for the invitations (R2, R3; recorded now, built later)
+
+- The confirmed e-mail is read on the server from `auth.users` (`email` and
+  `email_confirmed_at` of `auth.uid()`), never from the request or the token.
+- Every SECURITY DEFINER function: `set search_path = ''`, fully qualified names,
+  `REVOKE ALL ... FROM public, anon, authenticated, service_role`, then `GRANT EXECUTE` to
+  `authenticated` only.
+- DF027 is ONE answer for every invalid case (unknown token, expired, revoked, used, wrong
+  address): it never says which.
+- DF028 ("already a member") is returned only AFTER the invitation is found valid and its
+  address matches the caller: it cannot be used to probe memberships.
+- Tokens come from `gen_random_bytes(32)` (pgcrypto, a cryptographically secure generator),
+  encoded for the URL; only their SHA-256 hash is stored.
 
 ### Impacts identified
 
