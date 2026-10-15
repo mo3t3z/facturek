@@ -41,6 +41,9 @@
 //      payment would read the old sum and all five would pass.
 //  10. Conversion (P2f). The same devis converted from several connections at once: exactly
 //      one draft facture is created, with the lines of the devis; the others get DF025.
+//  11. Invitations (R2). The same invitation accepted from several connections at once by
+//      its recipient: exactly one membership; the others get DF027 (the token is used once).
+//      The token is read from create_invitation's output and never printed.
 //
 // The expected total. finalize_document(id, expected) refuses to issue unless `expected`
 // is the net à payer it computes itself. Every call below sends the amount computed from
@@ -71,6 +74,7 @@ const EXPECTED_WRONG = 8
 const PAY_CALLERS = 8
 const PARTIAL_PAYERS = 5
 const CONVERTERS = 5
+const ACCEPTERS = 5
 // How many times the finalizer of scenario 4 may be refused with DF009 (the lines changed
 // between the moment it read them and the moment it got the document) before giving up.
 const ITEM_RACE_ATTEMPTS = 12
@@ -130,7 +134,8 @@ const runId = randomUUID().slice(0, 8)
 const userId = randomUUID()
 const orphanWithoutProfile = randomUUID()
 const orphanWithProfile = randomUUID()
-const allUsers = [userId, orphanWithoutProfile, orphanWithProfile]
+const inviteeId = randomUUID()
+const allUsers = [userId, orphanWithoutProfile, orphanWithProfile, inviteeId]
 const clientId = randomUUID()
 const parallelDocs = Array.from({ length: WORKERS }, () => randomUUID())
 const rollbackDoc = randomUUID()
@@ -198,6 +203,7 @@ create temp table doomed_orgs on commit drop as
   where m.user_id in (${userList})
     and not exists (select 1 from public.organization_members other
                     where other.organization_id = m.organization_id and other.user_id not in (${userList}));
+delete from public.organization_invitations where organization_id in (select id from doomed_orgs) or invited_by in (${userList});
 delete from public.payments where organization_id in (select id from doomed_orgs);
 delete from public.document_items where organization_id in (select id from doomed_orgs);
 delete from public.documents where organization_id in (select id from doomed_orgs);
@@ -739,6 +745,38 @@ commit;
     `select count(*) || '/' || coalesce(sum((select count(*) from public.document_items i where i.document_id = f.id)), 0) || '/' || string_agg(f.status::text, ',')
      from public.documents f where f.converted_from = '${convertDevisDoc}';`)).trim()
   check(conversionState === '1/2/draft', 'one draft facture exists for the devis, with its two lines', `factures/lines/status: ${conversionState}`)
+
+  // 11. The same invitation accepted at the same instant --------------------------------------
+  const inviteeEmail = `concurrency-invitee-${runId}@test.local`
+  await mustRunSql(`insert into auth.users ${authUserColumns} values ${authUserRow(inviteeId, 'invitee')};`)
+  const created = await runSql(asUser(`
+select 'TOKEN=' || token from public.create_invitation('${orgId}', '${inviteeEmail}', 'member');
+commit;
+`))
+  const token = /^TOKEN=([A-Za-z0-9_-]{43})$/m.exec(created.stdout)?.[1]
+  if (created.code !== 0 || !token) throw new Error(`could not create the invitation: ${errorOf(created.stderr)}`)
+
+  console.log(`\n[11] ${ACCEPTERS} connections accept the SAME invitation at the same instant`)
+  // The token is part of this SQL text. A refused call (DF027) would make Postgres log the
+  // statement (log_min_error_statement = error), token included: these sessions turn that
+  // off first (a superuser setting, set before the role switch; local test database only).
+  const acceptCall = `set log_min_error_statement = panic;
+${asUser(`
+select 'ORG=' || public.accept_invitation('${token}');
+commit;
+`, inviteeId)}`
+  const accepted = await runTogether(Array.from({ length: ACCEPTERS }, () => acceptCall))
+  const acceptedOk = accepted.results.filter((r) => r.code === 0)
+  const acceptedRefused = accepted.results.filter((r) => r.code !== 0)
+  check(acceptedOk.length === 1 && acceptedOk[0].stdout.includes(`ORG=${orgId}`), 'exactly one acceptance succeeded, for the right organization',
+    `succeeded: ${acceptedOk.length}`)
+  check(acceptedRefused.length === ACCEPTERS - 1 && acceptedRefused.every((r) => /DF027/.test(r.stderr)),
+    `the other ${ACCEPTERS - 1} were refused with DF027 (the token is used once)`,
+    acceptedRefused.length ? `first error: ${errorOf(acceptedRefused[0].stderr)}` : '')
+  const invitationState = (await mustRunSql(
+    `select (select count(*) from public.organization_members where organization_id = '${orgId}' and user_id = '${inviteeId}') || '/' ||
+            (select count(*) from public.organization_invitations where organization_id = '${orgId}' and email = '${inviteeEmail}' and accepted_by = '${inviteeId}');`)).trim()
+  check(invitationState === '1/1', 'one membership, and the invitation is accepted once', `memberships/accepted invitations: ${invitationState}`)
 } catch (error) {
   // A scenario could not run at all (not a failed check): report it and still clean up.
   console.log(`\nABORTED: ${error.message}`)
