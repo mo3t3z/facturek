@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import translations from '../../locales/fr/translation.json'
 import { authState, fakeSession, renderRoutes } from '../../test/helpers'
 
-// The payments block of an issued facture and "Annuler le devis" (P2e3).
+// The payments block of an issued facture, "Annuler le devis" (P2e3) and "Créer la facture" (P2f).
 // The real client is replaced by a recorder: no network, and every request is kept.
 type Call = { table: string; op: 'select'; columns?: string; filters: Record<string, unknown> }
 type Result = { data: unknown; error: object | null }
@@ -48,6 +48,7 @@ const dbError = (code: string) => ({ code, message: 'internal: payments exceed',
 const user = userEvent.setup({ delay: null })
 
 const DOC = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const NEW_FACTURE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const line = { id: 'l1', position: 0, description: 'Prestation', quantity: '1.000', unit_price: '100.000', tva_rate: '0.000' }
 
 // An issued facture of 100.000 (stored), with a timbre of 1.000: net à payer 101.000.
@@ -62,6 +63,8 @@ let document: Record<string, unknown>
 let payments: Record<string, unknown>[]
 let rpcAnswer: (name: string, args: unknown) => Result
 let rpcCalls: { name: string; args: unknown }[]
+/** The facture made from the devis (findConvertedFacture), null when there is none. */
+let converted: Record<string, unknown> | null
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -69,14 +72,18 @@ beforeEach(() => {
   document = { ...facture }
   payments = [{ id: 'p1', amount: '40.000', paid_at: '2026-10-05', method: 'virement' }]
   rpcCalls = []
-  rpcAnswer = (name) => (name === 'record_payment' ? ok({ id: 'p-new', amount: 1.5 }) : ok({ id: DOC, status: 'cancelled' }))
+  converted = null
+  rpcAnswer = (name) =>
+    name === 'record_payment' ? ok({ id: 'p-new', amount: 1.5 }) : name === 'convert_devis_to_facture' ? ok({ id: NEW_FACTURE, status: 'draft' }) : ok({ id: DOC, status: 'cancelled' })
   api.rpc.mockImplementation((name: string, args: unknown) => {
-    if (name !== 'record_payment' && name !== 'cancel_devis') return Promise.resolve(ok('org-1'))
+    if (name !== 'record_payment' && name !== 'cancel_devis' && name !== 'convert_devis_to_facture') return Promise.resolve(ok('org-1'))
     rpcCalls.push({ name, args })
     return Promise.resolve(rpcAnswer(name, args))
   })
   api.respond.mockImplementation((call) => {
     if (call.table === 'organizations') return ok({ id: 'org-1', name: 'Org', matricule_fiscal: null, address: null, email: null, phone: null })
+    if (call.table === 'documents' && 'converted_from' in call.filters) return ok(converted)
+    if (call.table === 'documents' && call.filters.id === NEW_FACTURE) return ok({ ...facture, id: NEW_FACTURE, status: 'draft', number: null, year: null })
     if (call.table === 'documents') return ok(document)
     if (call.table === 'payments') return ok(payments)
     return ok([line])
@@ -312,5 +319,74 @@ describe('"Annuler le devis"', () => {
     open()
     await screen.findByRole('region', { name: 'Totaux' })
     expect(screen.queryByRole('region', { name: 'Annulation' })).not.toBeInTheDocument()
+  })
+})
+
+describe('"Créer la facture" on a sent devis', () => {
+  beforeEach(() => {
+    document = { ...facture, type: 'devis', timbre_fiscal: null, net_a_payer: '100.000' }
+  })
+  const convertRegion = () => screen.findByRole('region', { name: 'Facture' })
+
+  it('looks for the facture made from this devis, in the organization of the screen', async () => {
+    open()
+    await convertRegion()
+    expect(api.calls.find((call) => call.table === 'documents' && 'converted_from' in call.filters)).toMatchObject({
+      columns: 'id, number, year, status', filters: { organization_id: 'org-1', converted_from: DOC },
+    })
+  })
+
+  it('asks first, lands on "Retour", and sends nothing', async () => {
+    open()
+    const region = await convertRegion()
+    await user.click(within(region).getByRole('button', { name: 'Créer la facture' }))
+    const group = within(region).getByRole('group', { name: 'Créer la facture de ce devis ?' })
+    expect(within(group).getByText(/ne donne qu'une seule facture/)).toBeInTheDocument()
+    expect(within(group).getByRole('button', { name: 'Retour' })).toHaveFocus()
+    await user.click(within(group).getByRole('button', { name: 'Retour' }))
+    expect(rpcCalls).toEqual([])
+  })
+
+  it('confirming calls convert_devis_to_facture with the id only, then opens the new draft', async () => {
+    open()
+    const region = await convertRegion()
+    await user.click(within(region).getByRole('button', { name: 'Créer la facture' }))
+    await user.click(within(within(region).getByRole('group')).getByRole('button', { name: 'Créer la facture' }))
+    await waitFor(() => expect(rpcCalls).toEqual([{ name: 'convert_devis_to_facture', args: { p_devis_id: DOC } }]))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Facture en brouillon' })).toBeInTheDocument()
+  })
+
+  it('the second click of a double click does not convert', async () => {
+    open()
+    const region = await convertRegion()
+    await user.click(within(region).getByRole('button', { name: 'Créer la facture' }))
+    fireEvent.click(within(within(region).getByRole('group')).getByRole('button', { name: 'Créer la facture' }), { detail: 2 })
+    expect(rpcCalls).toEqual([])
+  })
+
+  it('DF025: says a facture already exists', async () => {
+    rpcAnswer = () => ({ data: null, error: dbError('DF025') })
+    open()
+    const region = await convertRegion()
+    await user.click(within(region).getByRole('button', { name: 'Créer la facture' }))
+    await user.click(within(within(region).getByRole('group')).getByRole('button', { name: 'Créer la facture' }))
+    expect(await within(region).findByRole('alert')).toHaveTextContent((translations.errors.db as Record<string, string>).DF025 as string)
+  })
+
+  it('once converted: links to the facture, offers neither the conversion nor the cancellation', async () => {
+    converted = { id: NEW_FACTURE, number: null, year: null, status: 'draft' }
+    open()
+    const region = await convertRegion()
+    expect(await within(region).findByText(/Une facture en brouillon a été créée à partir de ce devis\./)).toBeInTheDocument()
+    expect(within(region).getByRole('link', { name: 'Ouvrir la facture' })).toHaveAttribute('href', `/app/documents/${NEW_FACTURE}`)
+    expect(within(region).queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Annulation' })).not.toBeInTheDocument()
+  })
+
+  it('shows the number of an issued facture made from it', async () => {
+    converted = { id: NEW_FACTURE, number: 7, year: 2026, status: 'sent' }
+    open()
+    const region = await convertRegion()
+    expect(await within(region).findByText(/La facture 2026-0007 \(Émise\) a été établie à partir de ce devis\./)).toBeInTheDocument()
   })
 })

@@ -24,7 +24,7 @@ const LOGIN_FAILURE_CODES = new Set(['invalid_credentials', 'email_not_confirmed
 const DB_CODES = new Set([
   'DF000', 'DF001', 'DF002', 'DF003', 'DF004', 'DF005', 'DF006', 'DF007', 'DF008', 'DF009',
   'DF010', 'DF011', 'DF012', 'DF013', 'DF014', 'DF015', 'DF016', 'DF017', 'DF018', 'DF019',
-  'DF020', 'DF021', 'DF022', 'DF023', 'DF024', 'DF040',
+  'DF020', 'DF021', 'DF022', 'DF023', 'DF024', 'DF025', 'DF040',
   '42501', // insufficient privilege / row level security
   '23503', // foreign key
   '23505', // unique

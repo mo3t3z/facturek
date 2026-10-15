@@ -71,6 +71,11 @@ export function paymentPayload(documentId: string, amount: Millimes, paidAt: str
   }
 }
 
+// convert_devis_to_facture(p_devis_id): one draft facture per sent devis (DF025).
+export function convertDevisPayload(devisId: string) {
+  return { p_devis_id: devisId }
+}
+
 // cancel_devis(p_devis_id): only a sent devis, never once a facture was converted from it (DF021).
 export function cancelDevisPayload(devisId: string) {
   return { p_devis_id: devisId }

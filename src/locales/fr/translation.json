@@ -180,6 +180,7 @@
       "DF022": "Un document dont le total est nul ne peut pas être émis.",
       "DF023": "Le total de ce document dépasse le montant maximal possible.",
       "DF024": "Le montant du paiement n'est pas valide.",
+      "DF025": "Une facture a déjà été créée à partir de ce devis.",
       "DF040": "Cet élément ne peut pas changer d'entreprise.",
       "42501": "Vous n'avez pas les droits nécessaires pour cette action.",
       "23503": "Cet élément est utilisé ailleurs et ne peut pas être modifié ou supprimé.",
@@ -504,6 +505,22 @@
       "confirm": "Confirmer l'annulation",
       "confirming": "Annulation…",
       "back": "Retour",
+      "errors": {
+        "notFound": "Ce devis est introuvable. Il a peut-être été supprimé."
+      }
+    },
+    "convert": {
+      "title": "Facture",
+      "intro": "Créez la facture de ce devis : ses lignes, son client et ses notes seront repris dans une facture en brouillon.",
+      "button": "Créer la facture",
+      "question": "Créer la facture de ce devis ?",
+      "consequence": "Une facture en brouillon sera créée avec les lignes de ce devis. Vous pourrez la modifier avant de l'émettre. Un devis ne donne qu'une seule facture, et il ne pourra plus être annulé.",
+      "confirm": "Créer la facture",
+      "confirming": "Création…",
+      "back": "Retour",
+      "doneDraft": "Une facture en brouillon a été créée à partir de ce devis.",
+      "doneIssued": "La facture {{number}} ({{status}}) a été établie à partir de ce devis.",
+      "open": "Ouvrir la facture",
       "errors": {
         "notFound": "Ce devis est introuvable. Il a peut-être été supprimé."
       }

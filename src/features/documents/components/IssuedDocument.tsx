@@ -4,7 +4,7 @@ import type { DocumentDetail } from '../api'
 import { formatDay } from '../dates'
 import { formatDocumentNumber, statusKey, typeKey } from '../format'
 import { readStoredTotals } from '../storedTotals'
-import { CancelDevisPanel } from './CancelDevisPanel'
+import { DevisActions } from './DevisActions'
 import { ItemsEditor } from './ItemsEditor'
 import { PaymentsPanel } from './PaymentsPanel'
 import { TotalsTable } from './TotalsTable'
@@ -59,7 +59,7 @@ function Party({ titleId, title, name, matricule, address }: PartyProps) {
  * cannot be read, the screen says so and shows no amount.
  *
  * Below the totals: the payments of a facture (PaymentsPanel, from the STORED net à payer)
- * and, on a sent devis, "Annuler le devis" (CancelDevisPanel). No PDF, no print.
+ * and, on a sent devis, "Créer la facture" and "Annuler le devis" (DevisActions). No PDF, no print.
  * TODO(accountant): the number format; the net à payer is before any retenue à la source.
  */
 export function IssuedDocument({ organizationId, document }: IssuedDocumentProps) {
@@ -149,7 +149,7 @@ export function IssuedDocument({ organizationId, document }: IssuedDocumentProps
         <PaymentsPanel organizationId={organizationId} documentId={document.id} status={document.status} netAPayer={totals.netAPayer} />
       )}
 
-      {document.type === 'devis' && document.status === 'sent' && <CancelDevisPanel organizationId={organizationId} devisId={document.id} />}
+      {document.type === 'devis' && document.status === 'sent' && <DevisActions organizationId={organizationId} devisId={document.id} />}
 
       {document.notes !== null && (
         <section aria-labelledby="issued-notes-title" className="mt-6 rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm sm:p-6">
