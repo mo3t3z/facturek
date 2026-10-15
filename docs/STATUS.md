@@ -41,7 +41,7 @@ could swallow a click (`d664661`).
 
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
-| 1 | **P2e payments and status** | P2e1 (database) DONE on `checkpoint/p2e1-db`, not merged yet. Remaining: P2e2 plumbing (payload builders, API calls, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`), P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
+| 1 | **P2e payments and status** | P2e1 (database) DONE, merged into `main` at `1949012`. Remaining: P2e2 plumbing (payload builders, API calls, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`), P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
