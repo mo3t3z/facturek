@@ -32,6 +32,13 @@
 //      a finalize with a wrong expected total on ANOTHER draft is refused with DF009 at
 //      once: the totals are checked before the counter is touched, so a refused call does
 //      not even wait for the counter.
+//   9. Payments (P2e). (a) N connections each pay the WHOLE remaining amount of the same
+//      facture at the same instant: exactly one is recorded, the others are refused (DF018,
+//      or DF016 once the facture is paid), and the facture is paid exactly once.
+//      (b) Five payments of 0.300 on a facture of 1.000 at the same instant: exactly three
+//      are recorded (0.900) and the fourth would overpay, so it and the fifth get DF018.
+//      This is what the FOR UPDATE lock of guard_payments is for: with a shared lock every
+//      payment would read the old sum and all five would pass.
 //
 // The expected total. finalize_document(id, expected) refuses to issue unless `expected`
 // is the net à payer it computes itself. Every call below sends the amount computed from
@@ -59,6 +66,8 @@ const DELETE_RACE_ROUNDS = 9
 const ENSURE_CALLERS = 5
 const EXPECTED_RIGHT = 8
 const EXPECTED_WRONG = 8
+const PAY_CALLERS = 8
+const PARTIAL_PAYERS = 5
 // How many times the finalizer of scenario 4 may be refused with DF009 (the lines changed
 // between the moment it read them and the moment it got the document) before giving up.
 const ITEM_RACE_ATTEMPTS = 12
@@ -130,8 +139,10 @@ const rightTotalDocs = Array.from({ length: EXPECTED_RIGHT }, () => randomUUID()
 const wrongTotalDocs = Array.from({ length: EXPECTED_WRONG }, () => randomUUID())
 const counterHolderDoc = randomUUID()
 const refusedWhileHeldDoc = randomUUID()
+const payWholeDoc = randomUUID()
+const payPartialDoc = randomUUID()
 const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs, ...rightTotalDocs, ...wrongTotalDocs,
-  counterHolderDoc, refusedWhileHeldDoc]
+  counterHolderDoc, refusedWhileHeldDoc, payWholeDoc, payPartialDoc]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
 const gunKey = 700000000 + Math.floor(Math.random() * 1000000)
 // Created by the signup trigger; read back after the signup.
@@ -658,6 +669,45 @@ commit;
   check(sameList(lastState.numbers, range(Number(lastState.counter))) && Number(lastState.counter) === Number(after.counter) + 1,
     'the series is still 1..counter and only the holder consumed a number',
     `counter before: ${after.counter}, after: ${lastState.counter}`)
+
+  // 9. Payments at the same instant ------------------------------------------------------
+  // Both factures have one line of 1.000 at 0 % and no timbre: net à payer 1.000.
+  for (const doc of [payWholeDoc, payPartialDoc]) {
+    const issued = await runSql(finalizeAndCommit(doc))
+    if (issued.code !== 0) throw new Error(`could not issue the payment fixture: ${errorOf(issued.stderr)}`)
+  }
+  const payCall = (doc, amount) => asUser(`
+select 'PAID=' || amount from public.record_payment('${doc}', '${amount}', current_date, 'virement');
+commit;
+`)
+  const payState = async (doc) => (await mustRunSql(
+    `select d.status || '/' || (select count(*) from public.payments p where p.document_id = d.id) || '/' ||
+            coalesce((select sum(p.amount) from public.payments p where p.document_id = d.id), 0)
+     from public.documents d where d.id = '${doc}';`)).trim()
+
+  console.log(`
+[9a] ${PAY_CALLERS} connections pay the whole 1.000 of the same facture at the same instant`)
+  const whole = await runTogether(Array.from({ length: PAY_CALLERS }, () => payCall(payWholeDoc, '1.000')))
+  const wholeOk = whole.results.filter((r) => r.code === 0)
+  const wholeRefused = whole.results.filter((r) => r.code !== 0)
+  check(wholeOk.length === 1, 'exactly one payment was recorded', `recorded: ${wholeOk.length}`)
+  check(wholeRefused.every((r) => /DF018|DF016/.test(r.stderr)),
+    `the other ${PAY_CALLERS - 1} were refused with DF018 or DF016`,
+    wholeRefused.length ? `first error: ${errorOf(wholeRefused[0].stderr)}` : '')
+  const wholeState = await payState(payWholeDoc)
+  check(wholeState === 'paid/1/1.000', 'the facture is paid, with one payment of 1.000', `status/payments/sum: ${wholeState}`)
+
+  console.log(`
+[9b] ${PARTIAL_PAYERS} payments of 0.300 on a facture of 1.000 at the same instant`)
+  const partial = await runTogether(Array.from({ length: PARTIAL_PAYERS }, () => payCall(payPartialDoc, '0.300')))
+  const partialOk = partial.results.filter((r) => r.code === 0)
+  const partialRefused = partial.results.filter((r) => r.code !== 0)
+  check(partialOk.length === 3, 'exactly three payments were recorded (0.900)', `recorded: ${partialOk.length}`)
+  check(partialRefused.length === PARTIAL_PAYERS - 3 && partialRefused.every((r) => /DF018/.test(r.stderr)),
+    'the others were refused with DF018: no overpayment',
+    partialRefused.length ? `first error: ${errorOf(partialRefused[0].stderr)}` : '')
+  const partialState = await payState(payPartialDoc)
+  check(partialState === 'sent/3/0.900', 'the facture is still sent, with 0.900 paid', `status/payments/sum: ${partialState}`)
 } catch (error) {
   // A scenario could not run at all (not a failed check): report it and still clean up.
   console.log(`\nABORTED: ${error.message}`)
