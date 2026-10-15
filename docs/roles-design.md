@@ -252,4 +252,13 @@ remote database.
 - The local database was aligned BY HAND once (a constraint renamed with ALTER) after the
   migration file was edited before its first commit; the migration was never pushed. A
   replay from empty (`db:reset`) is the way to confirm it (it wipes local data: consent).
+- Fixed on 2026-10-16 (migration `20261016090002_create_invitation_replace_rule.sql`): an
+  admin could revoke the owner's pending ADMIN invitation by creating a MEMBER invitation for
+  the same address (the replacement revoked it without checking the role). Found by a local
+  adversarial probe (`scripts/security-invitation-probe.mjs`, untracked, not written in this
+  session). Now only the owner may replace a pending admin invitation (DF026); pgTAP 5b.
+- Reproducibility checked on 2026-10-16: every migration replayed from EMPTY on a separate,
+  throwaway local stack (another project id and ports), then pgTAP, concurrency and the five
+  e2e scripts on it, and its schema (`pg_dump --schema-only` of public and private, plus the
+  triggers on `auth.users`) compared line by line with the working local database.
 

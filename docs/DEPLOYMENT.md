@@ -61,9 +61,14 @@ Configured like `supabase/config.toml` (the local reference). In the dashboard:
       deploy an invitation feature on a database that lacks R1.
 - [ ] R-10 (exactly one owner) is implemented and pushed before ownership can be shared or
       transferred (R5).
-- [ ] Invitation tokens never reach a log: on the hosted project, statement and parameter
-      logging must not include the parameters of `accept_invitation` (keep
-      `log_parameter_max_length_on_error = 0`, no `log_statement = all`, no pgaudit on it).
+- [ ] Invitation tokens never reach a log. Through PostgREST the token is the parameter `$1`;
+      Postgres logs a failed statement WITHOUT its parameters only while
+      `log_parameter_max_length_on_error = 0`. But `log_parameter_max_length` is `-1` by
+      default: if `log_statement = all` (or `mod`) or `log_min_duration_statement >= 0` (slow
+      query logging) is turned on, the parameters, so the TOKEN, are logged in full. On the
+      hosted project check all four settings, and pgaudit, before invitations are exposed.
+      Checked locally on 2026-10-16: through REST, DF027 and DF028 are logged with `$1` only,
+      and no token appears in the logs of Postgres, PostgREST, Kong or Auth.
 
 ## 3. Front end (static host)
 

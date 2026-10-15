@@ -158,7 +158,9 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   `useMyRole()` (`src/features/organizations`) only to hide what would be refused, and
   pick the safe side (nothing offered) while it loads or if it cannot be read.
   R2 (invitations, database only) is built on its branch: `organization_invitations`,
-  `create_invitation()` (owner: admin or member; admin: member; never owner; DF026),
+  `create_invitation()` (owner: admin or member; admin: member; never owner; DF026; a new
+  invitation replaces the pending one of the address, and only the owner may replace an
+  admin one),
   `revoke_invitation()`, `accept_invitation()`. The token is 32 bytes from
   `extensions.gen_random_bytes`, returned once, stored only as `sha256`; 7 days; once.
   The recipient's address and its confirmation are read from `auth.users`. Nothing is
