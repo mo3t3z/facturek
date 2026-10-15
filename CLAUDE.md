@@ -151,6 +151,13 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
 
 - Memberships (`organization_members`) are never inserted from the API: no INSERT
   privilege, no INSERT policy. Only SECURITY DEFINER functions create them.
+- Roles per action (`docs/roles-design.md`, approved 2026-10-15): a `member` prepares
+  (clients, drafts, lines, converting a devis into a draft); `owner` and `admin` commit
+  (issue, record a payment, cancel a devis: DF026 otherwise); tax settings owner/admin;
+  organization identity owner only. Postgres decides. The screens read the role with
+  `useMyRole()` (`src/features/organizations`) only to hide what would be refused, and
+  pick the safe side (nothing offered) while it loads or if it cannot be read.
+  R2 to R5 (invitations, several organizations, ownership transfer) are NOT built.
 
 ### Accounts (signup and repair)
 An account = profile + one organization + owner membership + empty `tax_settings`.
@@ -207,6 +214,7 @@ introduced.
 | DF023 | The total exceeds the maximum: the net à payer does not fit `numeric(12,3)` | `public.finalize_document()` |
 | DF024 | The amount of a payment is not a positive text with 3 decimals (`"250.000"`): `"250"`, `"1e3"`, `"2,5"`, zero and NULL are refused before any cast | `public.record_payment()` |
 | DF025 | This devis was already converted into a facture: one facture per devis (the unique index `documents_one_facture_per_devis` answers 23505 to any other path) | `public.convert_devis_to_facture()` |
+| DF026 | Your role does not allow this action: issuing, recording a payment and cancelling a devis are for `owner` and `admin` (R-1). Checked after the membership check, so another organization's document still gives DF001 | `public.finalize_document()`, `public.record_payment()`, `public.cancel_devis()` |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
 ### Generated files

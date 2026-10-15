@@ -47,7 +47,7 @@ could swallow a click (`d664661`).
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Design DRAFT in `docs/avoir-print-design.md` (option proposed: a separate `avoir` type with its own series), blocked on questions C1 to C6. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Design DRAFT in `docs/avoir-print-design.md` (browser print first), blocked on questions C7 to C12. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
-| 7 | **Invitations** | Design in `docs/roles-design.md` (roles per action, invitations by link, several organizations, ownership transfer), waiting for the approval of R-1 to R-9. | The decisions R-1 to R-9. Whether a facture must be issued by a named person (accountant). |
+| 7 | **Invitations and roles** | Design approved 2026-10-15 (`docs/roles-design.md`, R-1 to R-10). R1 roles per action DONE on `checkpoint/r1-roles`, not merged yet (migration `20261015180001`, DF026). R2 to R5 (invitations, several organizations, ownership transfer, leaving) NOT started: separate approval needed. | Whether a facture must be issued by a named person (accountant). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
 | 9 | **Deployment** | Prepared on `checkpoint/deploy-prep`, not merged yet: checklist `docs/DEPLOYMENT.md`, security headers (`src/lib/securityHeaders.ts`, `dist/_headers`, checked under `npm run preview`). Nothing remote. | The accountant gate; the replay of every migration on an empty database (`db:reset`, needs consent); the host. |
 
@@ -67,11 +67,11 @@ exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 24 files, 1044 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 24 files, 1055 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 312 tests; statements 79/79, branches 29/29, functions 31/31, lines 72/72 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
-| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments, conversion | yes | 12 files, 743 tests, PASS |
+| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments, conversion, roles | yes | 13 files, 784 tests, PASS |
 | `npm run test:concurrency` | Real parallel connections: numbering, races, expected total, payments, conversion | yes | 11 scenarios (0 to 10), 55 checks passed |
 | `npm run test:e2e-auth` | Signup, confirmation, login, recovery through the local APIs | yes | 5 steps, 36 checks passed |
 | `npm run test:e2e-settings` | Settings through REST: numerics as text, RLS isolation | yes | 5 steps, 26 checks passed |
@@ -183,6 +183,14 @@ facture" (confirmation on "Retour"), the new draft facture opened with the same 
 the same net à payer, and the devis then showing only a link to it (no conversion, no
 cancellation), at desktop width and at exactly 375 px (page width 375).
 
+R1 (roles per action), checked on 2026-10-15 with the two accounts above. As the member,
+in the browser: the issue button disabled with its reason, no payment form (reason shown),
+settings read-only (8 fields disabled and greyed, no save button); through the REST API
+with the member's own token (what a modified front end could send): finalize_document,
+record_payment and cancel_devis -> DF026; PATCH status, POST payments -> 42501; PATCH an
+issued facture, tax_settings, organizations -> 0 rows; convert_devis_to_facture -> 200
+(R-2); no data changed. As the owner: every button and form still there.
+
 Still pending:
 - An organization without a tax settings row, on a FACTURE draft (needs deleting that row
   by hand on a test account).
@@ -190,11 +198,12 @@ Still pending:
 
 ## g. Local test data
 
-The local database was rebuilt EMPTY by `npm run db:reset` on 2026-10-15: it holds no
-account and no document. The accounts listed here before (the reference account
-`d2-browser-...`, `p2a-manual-...`, `p2c3-manual-...`, `moetez.ayed404@gmail.com`,
-`s8-layout-...`) no longer exist, and the reference fingerprint is gone with them.
-Passwords are never written in this repository's tracked files.
+The local database was rebuilt EMPTY by `npm run db:reset` on 2026-10-15. Since then it
+holds the two accounts of the R1 browser check (passwords never in tracked files):
 
-For the next manual check, create a new account through the signup screen and record it
-here. The test scripts create throwaway users and remove them.
+| E-mail | Organization | Role | What it holds |
+|---|---|---|---|
+| `r1-owner-20261015@example.test` | R1 Propriétaire | owner | 1 client; Facture 2026-0001 (100,000) issued; 1 draft facture (50,000); Devis 2026-0001 (80,000) issued, then converted by the member into a draft facture |
+| `r1-member-20261015@example.test` | R1 Propriétaire, and its own "R1 Membre" | member in R1 Propriétaire (owner of its own) | Nothing of its own. Its membership in R1 Propriétaire was INSERTED BY HAND in SQL (local only: invitations do not exist yet), dated one day earlier so the app opens that organization (first membership). |
+
+The test scripts create throwaway users and remove them; they do not touch these accounts.
