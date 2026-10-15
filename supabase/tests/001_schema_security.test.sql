@@ -49,7 +49,8 @@ select bag_eq(
             ('documents', 'set_updated_at'),
             ('document_items', 'guard_document_items'),
             ('document_items', 'set_updated_at'),
-            ('payments', 'guard_payments') $$,
+            ('payments', 'guard_payments'),
+            ('payments', 'mark_paid_when_covered') $$,
   'documents, document_items and payments carry exactly the expected triggers'
 );
 select is_empty(
@@ -72,8 +73,8 @@ select is_empty(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'private' and p.prosecdef
-     and p.proname in ('guard_documents', 'guard_document_conversion', 'guard_document_items', 'guard_payments')),
-  4, 'the four document guard functions are SECURITY DEFINER'
+     and p.proname in ('guard_documents', 'guard_document_conversion', 'guard_document_items', 'guard_payments', 'mark_paid_when_covered')),
+  5, 'the five document trigger functions are SECURITY DEFINER'
 );
 
 select is_empty(
@@ -219,8 +220,8 @@ select bag_eq(
   $$ select p.proname::text
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE') $$,
-  $$ values ('finalize_document'), ('ensure_my_account') $$,
-  'authenticated can execute exactly two functions in public: finalize_document and ensure_my_account'
+  $$ values ('finalize_document'), ('ensure_my_account'), ('record_payment'), ('cancel_devis') $$,
+  'authenticated can execute exactly four functions in public: finalize_document, ensure_my_account, record_payment, cancel_devis'
 );
 select ok(
   not has_function_privilege('anon', 'public.ensure_my_account()', 'EXECUTE')

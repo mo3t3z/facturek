@@ -41,13 +41,13 @@ select tests.create_draft('tr_draft_manual', tests.id('org_a'), tests.id('client
 -- D. items
 select pg_temp.issued('fac_items');
 select pg_temp.issued('fac_items_paid');
-update public.documents set status = 'paid' where id = tests.id('fac_items_paid');
+select tests.mark_paid(tests.id('fac_items_paid'));
 select tests.create_draft('draft_items_1', tests.id('org_a'), tests.id('client_a'));
 select tests.create_draft('draft_items_2', tests.id('org_a'), tests.id('client_a'));
 -- E. payments
 select pg_temp.issued('fac_pay');
 select pg_temp.issued('fac_pay_paid');
-update public.documents set status = 'paid' where id = tests.id('fac_pay_paid');
+select tests.mark_paid(tests.id('fac_pay_paid'));
 select pg_temp.issued('dev_pay', 'devis');
 select pg_temp.issued('dev_pay_cancelled', 'devis');
 update public.documents set status = 'cancelled' where id = tests.id('dev_pay_cancelled');
@@ -108,7 +108,7 @@ select throws_ok($$ update public.documents set retenue_enabled = not retenue_en
 select throws_ok($$ update public.documents set retenue_rate = 1 where id = tests.id('fac_frozen') $$, 'DF011', null, 'superuser: retenue_rate is frozen');
 select throws_ok($$ update public.documents set retenue_threshold = 1 where id = tests.id('fac_frozen') $$, 'DF011', null, 'superuser: retenue_threshold is frozen');
 select throws_ok(
-  $$ update public.documents set status = 'paid', notes = 'slipped in' where id = tests.id('fac_frozen') $$,
+  $$ update public.documents set status = 'cancelled', notes = 'slipped in' where id = tests.id('dev_to_cancel') $$,
   'DF011', null, 'superuser: content cannot ride along with an allowed status change');
 select throws_ok(
   $$ update public.documents set notes = 'edited' where id = tests.id('fac_frozen') $$,
@@ -177,7 +177,7 @@ select isnt_empty($$ select 1 from public.documents where id = tests.id('fac_del
 -- =========================================================================================
 -- Allowed.
 select lives_ok($$ select tests.mark_sent(tests.id('tr_draft_manual'), 700, 2021) $$, 'draft -> sent is allowed when the document is complete');
-select lives_ok($$ update public.documents set status = 'paid' where id = tests.id('fac_to_pay') $$, 'facture: sent -> paid is allowed');
+select lives_ok($$ select tests.mark_paid(tests.id('fac_to_pay')) $$, 'facture: sent -> paid (by paying it) is allowed');
 select lives_ok($$ update public.documents set status = 'cancelled' where id = tests.id('dev_to_cancel') $$, 'devis: sent -> cancelled is allowed');
 
 -- Forbidden, as superuser.
@@ -320,41 +320,36 @@ select throws_ok($$ delete from public.payments where id = tests.id('payment_1')
 -- As the API role.
 select tests.authenticate_as('alice@test.local');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('fac_pay_draft'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('fac_pay_draft'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'API: no payment on a draft facture');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('dev_pay'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('dev_pay'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'API: no payment on a sent devis');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('fac_pay_paid'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('fac_pay_paid'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'API: no payment on a paid facture');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('fac_pay_cancelled'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('fac_pay_cancelled'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'API: no payment on a cancelled facture');
 select lives_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('fac_pay'), 10.500, current_date, 'cheque') $$,
+  $$ select public.record_payment(tests.id('fac_pay'), '10.500', current_date, 'cheque') $$,
   'API: a payment on a sent facture is accepted');
 select throws_ok($$ update public.payments set amount = 1 where id = tests.id('payment_1') $$, '42501', null, 'API: a payment cannot be updated');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_1') $$, '42501', null, 'API: a payment cannot be deleted');
 select throws_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_b'), tests.id('b_sent'), 1, current_date, 'cash') $$,
-  '42501', 'permission denied', 'API: a payment for another organization''s SENT facture is refused');
+  '42501', 'permission denied for table payments', 'API: a payment for another organization''s SENT facture is refused');
 select throws_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
      values (tests.id('org_b'), tests.id('b_draft'), 1, current_date, 'cash') $$,
-  '42501', 'permission denied', 'API: a payment for another organization''s DRAFT is refused with the identical error');
+  '42501', 'permission denied for table payments', 'API: a payment for another organization''s DRAFT is refused with the identical error');
 select tests.clear_auth();
 
 select results_eq(
-  $$ select count(*)::int, sum(amount) from public.payments where organization_id = tests.id('org_a') $$,
+  $$ select count(*)::int, sum(amount) from public.payments where document_id = tests.id('fac_pay') $$,
   $$ values (2, 50.500::numeric) $$,
-  'exactly the two accepted payments exist, with their original amounts');
+  'fac_pay has exactly the two accepted payments, with their original amounts');
 select is((select count(*)::int from public.payments where organization_id = tests.id('org_b')), 0, 'no payment reached the other organization');
 
 -- =========================================================================================
@@ -433,12 +428,12 @@ select throws_ok(
      values (tests.id('org_a'), 'facture', tests.id('b_sent')) $$,
   '23503', null, 'superuser: the source must belong to the same organization');
 
--- The rule is checked when the link is made, not forever after: cancelling the devis later
--- must not block the facture that was validly converted from it.
+-- The link rule (DF013) is checked when the link is made. Since P2e (decision E-5) the
+-- source devis can no longer be cancelled once a facture was converted from it (DF021).
 update public.documents set converted_from = tests.id('dev_src_later') where id = tests.id('conv_life');
-select lives_ok($$ update public.documents set status = 'cancelled' where id = tests.id('dev_src_later') $$, 'the source devis can be cancelled after a facture was converted from it');
+select throws_ok($$ update public.documents set status = 'cancelled' where id = tests.id('dev_src_later') $$, 'DF021', null, 'superuser: the source devis cannot be cancelled once a facture was converted from it');
 select lives_ok($$ select tests.finalize_as('alice@test.local', tests.id('conv_life'), '100.000') $$, 'the converted facture can still be finalized');
-select lives_ok($$ update public.documents set status = 'paid' where id = tests.id('conv_life') $$, 'and can still be marked paid');
+select lives_ok($$ select tests.mark_paid(tests.id('conv_life')) $$, 'and can still be paid');
 select results_eq(
   $$ select status::text, converted_from from public.documents where id = tests.id('conv_life') $$,
   $$ select 'paid', tests.id('dev_src_later') $$,

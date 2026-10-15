@@ -189,6 +189,24 @@ as $$
   where id = p_document_id;
 $$;
 
+-- Pays what is left of a sent facture with one payment, as superuser. Since P2e a facture
+-- becomes 'paid' only that way: the trigger mark_paid_when_covered sets the status, and
+-- guard_documents refuses 'paid' by hand while the payments do not cover it (DF019).
+create or replace function tests.mark_paid(p_document_id uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  insert into public.payments (organization_id, document_id, amount, paid_at, method)
+  select d.organization_id, d.id,
+         d.net_a_payer - coalesce((select sum(p.amount) from public.payments p
+                                   where p.organization_id = d.organization_id and p.document_id = d.id), 0),
+         d.issue_date, 'virement'
+  from public.documents d
+  where d.id = p_document_id;
+$$;
+
 -- Calls finalize_document() as the given user and returns the number it assigned.
 -- p_expected_net_a_payer is the net à payer the user is supposed to have seen, as text
 -- with 3 decimals ("100.000"). It has NO default on purpose: every test states the amount

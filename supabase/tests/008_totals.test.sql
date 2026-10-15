@@ -327,7 +327,7 @@ select throws_ok(
 select is(pg_temp.stored('d_marked'), pg_temp.stored('d_wrong'), 'after the refused attempts the totals are unchanged');
 select tests.mark_sent(tests.id('d_paid'), 504, 2021);
 select lives_ok(
-  $$ update public.documents set status = 'paid' where id = tests.id('d_paid') $$,
+  $$ select tests.mark_paid(tests.id('d_paid')) $$,
   'sent -> paid is still allowed');
 select is(pg_temp.stored('d_paid'), pg_temp.stored('d_marked'), 'and the totals survive the status change untouched');
 

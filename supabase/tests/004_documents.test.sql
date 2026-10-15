@@ -34,7 +34,7 @@ select tests.mark_sent(tests.id('devis_a_sent'), 1);
 -- Factures that are past 'sent': no payment may be recorded on them.
 select tests.create_draft('doc_a_paid', tests.id('org_a'), tests.id('client_a'));
 select tests.mark_sent(tests.id('doc_a_paid'), 10);
-update public.documents set status = 'paid' where id = tests.id('doc_a_paid');
+select tests.mark_paid(tests.id('doc_a_paid'));
 -- A cancelled facture cannot be reached through any status transition. The only way such
 -- a row can exist is a privileged INSERT directly in that state, which is what this is.
 insert into public.documents (organization_id, type, status, number, year, client_id, issue_date,
@@ -51,7 +51,7 @@ select is_empty($$ select 1 from public.document_items where organization_id = t
 select is_empty($$ select 1 from public.payments where organization_id = tests.id('org_b') $$, 'A cannot read B''s payments');
 select is((select count(*)::int from public.documents), 8, 'A reads exactly their own 8 documents');
 select is((select count(*)::int from public.document_items), 7, 'A reads exactly their own 7 items');
-select is((select count(*)::int from public.payments), 1, 'A reads exactly their own payment');
+select is((select count(*)::int from public.payments), 2, 'A reads exactly their own 2 payments');
 
 -- 2. CROSS-ORG ISOLATION: WRITE ----------------------------------------------------------
 select throws_ok(
@@ -196,32 +196,30 @@ select is_empty(
   $$ select 1 from public.document_items where id = tests.id('doc_a_other:item') $$,
   'deleting a draft deletes its items');
 
--- 6. PAYMENTS: only on a sent facture, and append-only from the API -----------------------
-select lives_ok(
+-- 6. PAYMENTS: only through record_payment(), only on a sent facture, append-only ----------
+select throws_ok(
   $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('doc_a_sent'), 50.500, current_date, 'virement') $$,
+     values (tests.id('org_a'), tests.id('doc_a_sent'), 1, current_date, 'cash') $$,
+  '42501', null, 'the API role cannot insert a payment directly: record_payment() is its only path');
+select lives_ok(
+  $$ select public.record_payment(tests.id('doc_a_sent'), '50.500', current_date, 'virement') $$,
   'a payment can be recorded on a sent facture');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('doc_a'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('doc_a'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'a payment cannot be recorded on a draft facture');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('devis_a_sent'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('devis_a_sent'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'a payment cannot be recorded on a sent devis');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('devis_a'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('devis_a'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'a payment cannot be recorded on a draft devis');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('doc_a_paid'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('doc_a_paid'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'a payment cannot be recorded on a paid facture');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('doc_a_cancelled'), 1, current_date, 'cash') $$,
+  $$ select public.record_payment(tests.id('doc_a_cancelled'), '1.000', current_date, 'cash') $$,
   'DF016', null, 'a payment cannot be recorded on a cancelled facture');
-select is((select count(*)::int from public.payments), 2, 'only the accepted payment was added');
+select is((select count(*)::int from public.payments), 3, 'only the accepted payment was added (next to the two fixtures)');
 select throws_ok($$ update public.payments set amount = 1 where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be updated from the API');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_a') $$, '42501', null, 'a payment cannot be deleted from the API');
 select throws_ok($$ delete from public.payments where id = tests.id('payment_b') $$, '42501', null, 'another org''s payment cannot be deleted either');
@@ -248,9 +246,8 @@ select throws_ok(
      values (tests.id('org_a'), tests.id('doc_a'), 'x', 1, 1) $$,
   '23502', null, 'tva_rate has no default and must be given');
 select throws_ok(
-  $$ insert into public.payments (organization_id, document_id, amount, paid_at, method)
-     values (tests.id('org_a'), tests.id('doc_a_sent'), 0, current_date, 'cash') $$,
-  '23514', null, 'payment amount must be > 0');
+  $$ select public.record_payment(tests.id('doc_a_sent'), '0.000', current_date, 'cash') $$,
+  'DF024', null, 'payment amount must be > 0 (DF024 from record_payment)');
 select throws_ok(
   $$ update public.documents set issue_date = date '2026-10-10', due_date = date '2026-10-01' where id = tests.id('doc_a') $$,
   '23514', null, 'due_date cannot be before issue_date');
