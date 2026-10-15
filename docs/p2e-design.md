@@ -182,3 +182,7 @@ public.cancel_devis(p_devis_id uuid) returns public.documents
   the stored amount, which is the point.
 - The retenue à la source is still in no total: a client who withholds it pays less than
   the net à payer, and the facture never reaches `paid` (already in `STATUS.md`).
+
+## Decisions (approved 2026-10-15)
+
+E-1 to E-7 approved as proposed, with no change. Work starts with P2e1 (database).
