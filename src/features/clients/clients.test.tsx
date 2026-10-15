@@ -236,7 +236,8 @@ describe('clients list', () => {
     stored = [{ ...bechir, name: hostile }]
     const { container } = open('/app/clients')
     expect(await screen.findByText(hostile)).toBeInTheDocument()
-    expect(container.querySelector('img')).toBeNull()
+    // The shell has its own logo image; what must not exist is the one from the text.
+    expect(container.querySelector('img[src="x"], img[onerror]')).toBeNull()
     expect(container.querySelector('b')).toBeNull()
   })
 })

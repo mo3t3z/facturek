@@ -94,7 +94,8 @@ describe('after login', () => {
     api.maybeSingle.mockResolvedValue(ok({ id: 'org-1', name: hostile }))
     const { container } = renderHome()
     expect(await screen.findByText(hostile)).toBeInTheDocument()
-    expect(container.querySelector('img')).toBeNull()
+    // The shell has its own logo image; what must not exist is the one from the text.
+    expect(container.querySelector('img[src="x"], img[onerror]')).toBeNull()
     expect(container.querySelector('b')).toBeNull()
   })
 })

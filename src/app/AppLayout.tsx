@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet } from 'react-router'
 import { supabase } from '../lib/supabase'
+import logoUrl from '../assets/facturek-logo.webp'
 
 const navLink =
   'rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 aria-[current=page]:bg-blue-50 aria-[current=page]:text-blue-800'
@@ -21,7 +22,7 @@ export function AppLayout() {
       </a>
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-          <p className="text-base font-semibold text-slate-900">{t('app.name')}</p>
+          <img src={logoUrl} alt={t('app.name')} width={116} height={24} className="h-6 w-auto" />
           <button
             type="button"
             onClick={() => void supabase.auth.signOut()}

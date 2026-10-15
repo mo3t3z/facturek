@@ -177,7 +177,8 @@ describe('lines of a draft', () => {
     const { container } = open()
     await addForm()
     expect(screen.getByText(hostile)).toBeInTheDocument()
-    expect(container.querySelector('img')).toBeNull()
+    // The shell has its own logo image; what must not exist is the one from the text.
+    expect(container.querySelector('img[src="x"], img[onerror]')).toBeNull()
     expect(container.querySelector('b')).toBeNull()
   })
 })
