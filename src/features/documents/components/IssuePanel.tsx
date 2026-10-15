@@ -147,7 +147,11 @@ export function IssuePanel(props: IssuePanelProps) {
   // The confirmation never stays open over something that changed under it.
   const open = confirmed !== null && !blocked && !stale
 
-  const send = () => {
+  // The confirm button appears where the button that opened the confirmation was, or near
+  // it. The second click of a double click (detail 2) must not confirm what the user has
+  // not read: it is ignored. A single click (1) and the keyboard (0) work as usual.
+  const send = (event: { detail: number }) => {
+    if (event.detail > 1) return
     if (confirmed === null || blocked || stale || sending.current || issue.isPending) return
     sending.current = true
     // The amount the user is looking at, not whatever the screen has computed since.

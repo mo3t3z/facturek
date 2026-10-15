@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeTotals, fromDbNumeric, fromDbQuantity, fromDbRate, toDbNumeric } from '../../lib/money/money'
@@ -122,6 +122,7 @@ beforeEach(() => {
     if (call.table === 'organizations') return ok(organization)
     if (call.table === 'clients') return ok([{ id: CLIENT, name: 'Société Élan', matricule_fiscal: null, address: null, email: null, phone: null }])
     if (call.table === 'tax_settings') return ok(tax)
+    if (call.table === 'payments') return ok([])
     if (call.table === 'documents') return ok(call.op === 'select' ? document : { id: DOC })
     if (call.op === 'select') return ok(lines)
     return ok({ id: call.filters.id ?? 'new-line' })
@@ -403,6 +404,13 @@ describe('confirming', () => {
     await waitFor(() => expect(finalizeCalls).toEqual([{ p_document_id: DOC, p_expected_net_a_payer: '30.150' }]))
   })
 
+  it('the second click of a double click that opened the confirmation does not issue', async () => {
+    const { group } = await openConfirmation()
+    fireEvent.click(within(group).getByRole('button', { name: "Confirmer l'émission" }), { detail: 2 })
+    expect(finalizeCalls).toEqual([])
+    expect(within(group).getByRole('button', { name: "Confirmer l'émission" })).toBeInTheDocument()
+  })
+
   it('sends ONE request for a double click, and disables both buttons while it is pending', async () => {
     let answer: (result: Result) => void = () => undefined
     finalize = () => new Promise<Result>((resolve) => { answer = resolve })
@@ -546,6 +554,13 @@ describe('the issued view', () => {
     document = { ...issued }
   })
   const totals = () => screen.findByRole('region', { name: 'Totaux' })
+  /** The payments block, once its (empty) list is loaded. */
+  const paymentsLoaded = async () => {
+    const region = await screen.findByRole('region', { name: 'Paiements' })
+    await within(region).findByText('Aucun paiement enregistré.')
+    return region
+  }
+  const outside = (region: HTMLElement, elements: HTMLElement[]) => elements.filter((element) => !region.contains(element))
 
   it('shows the number, the type, the French status and the dates as they are stored', async () => {
     open()
@@ -620,9 +635,11 @@ describe('the issued view', () => {
     // Text, not HTML: the tag is shown as typed and creates no element.
     expect(notes.getByText(/Paiement à 30 jours\.\s+Merci <b>beaucoup<\/b>/)).toBeInTheDocument()
     expect(window.document.querySelector('b')).toBeNull()
-    expect(screen.queryByRole('form')).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button')).toHaveTextContent(/Déconnexion|déconnecter/i)
+    // Since P2e the only thing that can be typed on an issued facture is a payment, in its
+    // own block. Nothing of the document itself is editable.
+    const payments = await paymentsLoaded()
+    expect(outside(payments, screen.queryAllByRole('textbox'))).toEqual([])
+    expect(outside(payments, screen.queryAllByRole('button')).map((button) => button.textContent)).toEqual([expect.stringMatching(/Déconnexion|déconnecter/i)])
   })
 
   it('has no notes block when there is no note', async () => {
@@ -635,8 +652,9 @@ describe('the issued view', () => {
   it('offers nothing to issue, edit, delete, print or download, and reads no tax settings', async () => {
     open()
     await totals()
+    const payments = await paymentsLoaded()
     expect(screen.queryByRole('region', { name: 'Émission' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Émettre|Modifier|Supprimer|Enregistrer|Imprimer|PDF|Télécharger|Paiement/i })).not.toBeInTheDocument()
+    expect(outside(payments, screen.queryAllByRole('button', { name: /Émettre|Modifier|Supprimer|Enregistrer|Imprimer|PDF|Télécharger|Paiement/i }))).toEqual([])
     expect(screen.queryByRole('link', { name: /Imprimer|PDF|Télécharger/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Aperçu, non enregistré')).not.toBeInTheDocument()
     // Nothing is computed from today's settings: they are not even read.
