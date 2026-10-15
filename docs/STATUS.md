@@ -60,9 +60,10 @@ is a user of the run.
 
 ## c. Test inventory
 
-All counts below were produced by running the command on 2026-10-14, on
-`checkpoint/docs-status` at `2e83915` (this branch changes documentation only).
-Every command exited with code 0.
+The database counts below were produced on 2026-10-15 at `4ca7dc0`, on a database rebuilt
+from EMPTY by `npm run db:reset` (every one of the 25 migrations replayed without error).
+The other counts were produced on the same day by running the command. Every command
+exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
@@ -79,10 +80,12 @@ Every command exited with code 0.
 | `npm run test:e2e-payments` | Payments and cancel_devis through REST: no direct INSERT, amount as text, DF018, automatic paid, DF021, isolation | yes | 7 steps, 24 checks passed |
 | `npm run money:vectors` | Regenerates the vectors from `private.compute_totals()` | yes | 22 hand-written agree, 600 generated (577 with totals, 23 over the maximum); run twice, byte-identical |
 
-Not run:
-- **A replay of every migration from an empty database** (`npm run db:reset`) has not been
-  run since P2d2a. It wipes the local data and needs the developer's explicit consent.
-- `npm run build` is not a test; it passed at `2e83915` before the P2d3 merge.
+Replay from empty: `npm run db:reset` on 2026-10-15 (with the developer's consent) applied the
+25 migrations in order with no error, then `test:db`, `test:concurrency`, the five e2e
+scripts and `money:vectors` passed on that new database; the regenerated vectors and
+`database.types.ts` were byte-identical to the committed ones.
+
+`npm run build` is not a test; it passed at `4ca7dc0` and writes `dist/_headers`.
 
 ## d. Open questions
 
@@ -187,19 +190,11 @@ Still pending:
 
 ## g. Local test data
 
-The local database is the only database. It holds 5 accounts (as of 2026-10-15).
+The local database was rebuilt EMPTY by `npm run db:reset` on 2026-10-15: it holds no
+account and no document. The accounts listed here before (the reference account
+`d2-browser-...`, `p2a-manual-...`, `p2c3-manual-...`, `moetez.ayed404@gmail.com`,
+`s8-layout-...`) no longer exist, and the reference fingerprint is gone with them.
 Passwords are never written in this repository's tracked files.
 
-| E-mail | Organization | Created | What it holds |
-|---|---|---|---|
-| `d2-browser-1791845302766@example.test` | Vérification navigateur D2 | 2026-10-12 | No document. **The reference account** checked after every run: user `13cc61db-3dc5-4df0-8d5b-88f5df9ea1f4`, fingerprint `9c5ac912dcc7a481329eeb64b9b59a26` |
-| `p2a-manual-20261013@example.test` | P2a Manual Renommée | 2026-10-13 | 1 draft facture; timbre enabled |
-| `p2c3-manual-20261013@example.test` | Test Manuel P2c3 | 2026-10-13 | The account for manual checks. Issued and permanent: Facture 2026-0001 (23,800), Facture 2026-0002 (120,000, with a timbre of 1,000), Devis 2026-0001 (190,400, issued by the bug fixed in `78a6461`). 1 draft devis. |
-| `moetez.ayed404@gmail.com` | moetez ayed | 2026-10-14 | No document. Created by the developer; no fingerprint recorded for it. |
-| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Throwaway. Facture 2026-0001 (238,000) PAID by one payment; Facture 2026-0002 (59,500) partly paid: 20,500 (recorded by a click of mine that landed on the confirm button during the browser check, see section f); Devis 2026-0001 (10,000) cancelled. Devis 2026-0002 (89,250) converted into a draft facture (P2f browser check). |
-
-The fingerprint is `md5` of the user id, organization id, role and organization creation
-time of the reference account. It changes if that account is re-created, which is what a
-`db:reset` would do.
-
-The test scripts create throwaway users and remove them; they do not touch these accounts.
+For the next manual check, create a new account through the signup screen and record it
+here. The test scripts create throwaway users and remove them.
