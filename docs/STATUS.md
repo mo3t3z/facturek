@@ -42,7 +42,7 @@ could swallow a click (`d664661`).
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
 | 1 | **P2e payments and status** | DONE, merged into `main` at `f231325`. Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
-| 2 | **P2f conversion** | DONE on `checkpoint/p2f-conversion`, not merged yet: `convert_devis_to_facture(p_devis_id)` (one transaction: draft facture, copy of the lines, link), ONE facture per devis (DF025 + unique index), "Créer la facture" on a sent devis. | Decided 2026-10-15: one facture per devis. |
+| 2 | **P2f conversion** | DONE, merged into `main` at `bb00017`: `convert_devis_to_facture(p_devis_id)` (one transaction: draft facture, copy of the lines, link), ONE facture per devis (DF025 + unique index), "Créer la facture" on a sent devis. | Decided 2026-10-15: one facture per devis. |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
