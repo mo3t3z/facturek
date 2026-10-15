@@ -62,6 +62,7 @@ values (tests.id('org_a'), 'facture', 'cancelled', 900, 2020, tests.id('client_a
 returning tests.remember('fac_pay_cancelled', id);
 -- F. converted_from
 select pg_temp.issued('dev_src', 'devis');
+select pg_temp.issued('dev_src2', 'devis');
 select pg_temp.issued('dev_src_cancelled', 'devis');
 update public.documents set status = 'cancelled' where id = tests.id('dev_src_cancelled');
 select pg_temp.issued('dev_src_later', 'devis');
@@ -378,8 +379,13 @@ select throws_ok(
      values (tests.id('org_a'), 'facture', tests.id('client_a'), tests.id('dev_src_cancelled')) $$,
   'DF013', null, 'API: a facture cannot be converted from a cancelled devis');
 select lives_ok(
-  $$ update public.documents set converted_from = tests.id('dev_src') where id = tests.id('conv_draft') $$,
+  $$ update public.documents set converted_from = tests.id('dev_src2') where id = tests.id('conv_draft') $$,
   'API: the link can be set on an existing draft facture');
+-- One facture per devis (index documents_one_facture_per_devis), for every role.
+select throws_ok(
+  $$ insert into public.documents (organization_id, type, client_id, converted_from)
+     values (tests.id('org_a'), 'facture', tests.id('client_a'), tests.id('dev_src')) $$,
+  '23505', null, 'API: a second facture cannot be created from the same devis');
 select throws_ok(
   $$ update public.documents set converted_from = tests.id('dev_src_draft') where id = tests.id('conv_draft') $$,
   'DF013', null, 'API: the link cannot be changed to a draft devis');

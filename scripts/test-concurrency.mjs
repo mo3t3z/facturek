@@ -39,6 +39,8 @@
 //      are recorded (0.900) and the fourth would overpay, so it and the fifth get DF018.
 //      This is what the FOR UPDATE lock of guard_payments is for: with a shared lock every
 //      payment would read the old sum and all five would pass.
+//  10. Conversion (P2f). The same devis converted from several connections at once: exactly
+//      one draft facture is created, with the lines of the devis; the others get DF025.
 //
 // The expected total. finalize_document(id, expected) refuses to issue unless `expected`
 // is the net à payer it computes itself. Every call below sends the amount computed from
@@ -68,6 +70,7 @@ const EXPECTED_RIGHT = 8
 const EXPECTED_WRONG = 8
 const PAY_CALLERS = 8
 const PARTIAL_PAYERS = 5
+const CONVERTERS = 5
 // How many times the finalizer of scenario 4 may be refused with DF009 (the lines changed
 // between the moment it read them and the moment it got the document) before giving up.
 const ITEM_RACE_ATTEMPTS = 12
@@ -141,6 +144,7 @@ const counterHolderDoc = randomUUID()
 const refusedWhileHeldDoc = randomUUID()
 const payWholeDoc = randomUUID()
 const payPartialDoc = randomUUID()
+const convertDevisDoc = randomUUID()
 const allDocs = [...parallelDocs, rollbackDoc, afterRollbackDoc, sameDoc, itemRaceDoc, ...deleteRaceDocs, ...rightTotalDocs, ...wrongTotalDocs,
   counterHolderDoc, refusedWhileHeldDoc, payWholeDoc, payPartialDoc]
 // Session-level advisory lock used as a starting gun (must fit in 31 bits).
@@ -708,6 +712,33 @@ commit;
     partialRefused.length ? `first error: ${errorOf(partialRefused[0].stderr)}` : '')
   const partialState = await payState(payPartialDoc)
   check(partialState === 'sent/3/0.900', 'the facture is still sent, with 0.900 paid', `status/payments/sum: ${partialState}`)
+
+  // 10. The same devis converted at the same instant ---------------------------------------
+  await mustRunSql(`
+begin;
+insert into public.documents (id, organization_id, type, client_id) values ('${convertDevisDoc}', '${orgId}', 'devis', '${clientId}');
+insert into public.document_items (organization_id, document_id, description, quantity, unit_price, tva_rate)
+  values ('${orgId}', '${convertDevisDoc}', 'Line', 1, 1, 0), ('${orgId}', '${convertDevisDoc}', 'Line 2', 2, 1, 0);
+commit;`)
+  const devisIssued = await runSql(finalizeAndCommit(convertDevisDoc))
+  if (devisIssued.code !== 0) throw new Error(`could not issue the devis to convert: ${errorOf(devisIssued.stderr)}`)
+
+  console.log(`\n[10] ${CONVERTERS} connections convert the SAME devis at the same instant`)
+  const convertCall = asUser(`
+select 'FACTURE=' || id from public.convert_devis_to_facture('${convertDevisDoc}');
+commit;
+`)
+  const converted = await runTogether(Array.from({ length: CONVERTERS }, () => convertCall))
+  const convertedOk = converted.results.filter((r) => r.code === 0)
+  const convertedRefused = converted.results.filter((r) => r.code !== 0)
+  check(convertedOk.length === 1, 'exactly one conversion succeeded', `succeeded: ${convertedOk.length}`)
+  check(convertedRefused.length === CONVERTERS - 1 && convertedRefused.every((r) => /DF025/.test(r.stderr)),
+    `the other ${CONVERTERS - 1} were refused with DF025 (already converted)`,
+    convertedRefused.length ? `first error: ${errorOf(convertedRefused[0].stderr)}` : '')
+  const conversionState = (await mustRunSql(
+    `select count(*) || '/' || coalesce(sum((select count(*) from public.document_items i where i.document_id = f.id)), 0) || '/' || string_agg(f.status::text, ',')
+     from public.documents f where f.converted_from = '${convertDevisDoc}';`)).trim()
+  check(conversionState === '1/2/draft', 'one draft facture exists for the devis, with its two lines', `factures/lines/status: ${conversionState}`)
 } catch (error) {
   // A scenario could not run at all (not a failed check): report it and still clean up.
   console.log(`\nABORTED: ${error.message}`)
