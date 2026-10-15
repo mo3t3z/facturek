@@ -41,8 +41,8 @@ could swallow a click (`d664661`).
 
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
-| 1 | **P2e payments and status** | DONE on `checkpoint/p2e3-screens` (P2e1 merged at `1949012`, P2e2 at `8ff7c6c`), P2e3 not merged yet: payments block on an issued facture, "Annuler le devis". Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
-| 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
+| 1 | **P2e payments and status** | DONE, merged into `main` at `f231325`. Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
+| 2 | **P2f conversion** | DONE on `checkpoint/p2f-conversion`, not merged yet: `convert_devis_to_facture(p_devis_id)` (one transaction: draft facture, copy of the lines, link), ONE facture per devis (DF025 + unique index), "Créer la facture" on a sent devis. | Decided 2026-10-15: one facture per devis. |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
@@ -66,12 +66,12 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 23 files, 1030 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 23 files, 1037 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 312 tests; statements 79/79, branches 29/29, functions 31/31, lines 72/72 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
-| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments | yes | 11 files, 720 tests, PASS |
-| `npm run test:concurrency` | Real parallel connections: numbering, races, expected total, payments | yes | 10 scenarios (0 to 9), 52 checks passed |
+| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments, conversion | yes | 12 files, 743 tests, PASS |
+| `npm run test:concurrency` | Real parallel connections: numbering, races, expected total, payments, conversion | yes | 11 scenarios (0 to 10), 55 checks passed |
 | `npm run test:e2e-auth` | Signup, confirmation, login, recovery through the local APIs | yes | 5 steps, 36 checks passed |
 | `npm run test:e2e-settings` | Settings through REST: numerics as text, RLS isolation | yes | 5 steps, 26 checks passed |
 | `npm run test:e2e-documents` | Drafts and finalize through REST, including PGRST202 and DF009 | yes | 6 steps, 42 checks passed |
@@ -175,6 +175,11 @@ payment of 20,500 was recorded that way. Fixed for the three confirmations: the 
 of a double click (detail 2) is ignored (tests in issue.test.tsx and paymentsPanel.test.tsx).
 Not seen: DF018 and DF021 on the real screen (covered by component and e2e tests).
 
+P2f, checked in a browser on 2026-10-15 on the same account: a devis issued, "Créer la
+facture" (confirmation on "Retour"), the new draft facture opened with the same line and
+the same net à payer, and the devis then showing only a link to it (no conversion, no
+cancellation), at desktop width and at exactly 375 px (page width 375).
+
 Still pending:
 - An organization without a tax settings row, on a FACTURE draft (needs deleting that row
   by hand on a test account).
@@ -191,7 +196,7 @@ Passwords are never written in this repository's tracked files.
 | `p2a-manual-20261013@example.test` | P2a Manual Renommée | 2026-10-13 | 1 draft facture; timbre enabled |
 | `p2c3-manual-20261013@example.test` | Test Manuel P2c3 | 2026-10-13 | The account for manual checks. Issued and permanent: Facture 2026-0001 (23,800), Facture 2026-0002 (120,000, with a timbre of 1,000), Devis 2026-0001 (190,400, issued by the bug fixed in `78a6461`). 1 draft devis. |
 | `moetez.ayed404@gmail.com` | moetez ayed | 2026-10-14 | No document. Created by the developer; no fingerprint recorded for it. |
-| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Throwaway. Facture 2026-0001 (238,000) PAID by one payment; Facture 2026-0002 (59,500) partly paid: 20,500 (recorded by a click of mine that landed on the confirm button during the browser check, see section f); Devis 2026-0001 (10,000) cancelled. |
+| `s8-layout-20261015@example.test` | Test Layout S8 | 2026-10-15 | Throwaway. Facture 2026-0001 (238,000) PAID by one payment; Facture 2026-0002 (59,500) partly paid: 20,500 (recorded by a click of mine that landed on the confirm button during the browser check, see section f); Devis 2026-0001 (10,000) cancelled. Devis 2026-0002 (89,250) converted into a draft facture (P2f browser check). |
 
 The fingerprint is `md5` of the user id, organization id, role and organization creation
 time of the reference account. It changes if that account is re-created, which is what a

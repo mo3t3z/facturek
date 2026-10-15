@@ -134,6 +134,12 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   TODO(accountant).
 - A devis is cancelled only through `public.cancel_devis(p_devis_id)`, never once a facture
   was converted from it (DF021, every role).
+- A devis becomes a facture through `public.convert_devis_to_facture(p_devis_id)`: one
+  transaction creates a DRAFT facture with the client, the notes and a copy of every line,
+  linked by `converted_from`. ONE facture per devis (decision 2026-10-15): DF025 from the
+  function, a unique index for every role. Deleting the draft frees the devis again.
+  The screen (`DevisActions`) asks first, then opens the new draft; once converted, the
+  devis links to its facture and offers neither the conversion nor the cancellation.
 - Two layers, on purpose. RLS policies and column privileges bind the API role only.
   Triggers and CHECK constraints bind EVERY role (service role, SQL editor). A rule that
   protects issued documents, items or payments must exist as a trigger or a constraint.
@@ -188,7 +194,7 @@ introduced.
 | DF010 | A non-draft document cannot be deleted | `private.guard_documents()` (trigger on `documents`) |
 | DF011 | A non-draft document is frozen: a column other than `status` / `updated_at` was changed (the message names the columns) | `private.guard_documents()` |
 | DF012 | Status transition not allowed. Allowed: draft → sent; facture sent → paid; devis sent → cancelled | `private.guard_documents()`, `public.cancel_devis()` |
-| DF013 | `converted_from` rule violated: only a facture, only from a devis that is neither draft nor cancelled, never from itself | `private.guard_document_conversion()` (trigger on `documents`) |
+| DF013 | `converted_from` rule violated: only a facture, only from a devis that is neither draft nor cancelled, never from itself | `private.guard_document_conversion()` (trigger on `documents`), `public.convert_devis_to_facture()` |
 | DF014 | The items of a non-draft document cannot be inserted, updated or deleted | `private.guard_document_items()` (trigger on `document_items`) |
 | DF015 | An item cannot be moved to another document or organization | `private.guard_document_items()` |
 | DF016 | A payment can only be recorded on a facture whose status is `sent` | `private.guard_payments()` (trigger on `payments`), `public.record_payment()` |
@@ -200,6 +206,7 @@ introduced.
 | DF022 | The total is zero: `total_ttc` (HT + TVA) is 0, with or without a timbre. TODO(accountant) | `public.finalize_document()` |
 | DF023 | The total exceeds the maximum: the net à payer does not fit `numeric(12,3)` | `public.finalize_document()` |
 | DF024 | The amount of a payment is not a positive text with 3 decimals (`"250.000"`): `"250"`, `"1e3"`, `"2,5"`, zero and NULL are refused before any cast | `public.record_payment()` |
+| DF025 | This devis was already converted into a facture: one facture per devis (the unique index `documents_one_facture_per_devis` answers 23505 to any other path) | `public.convert_devis_to_facture()` |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
 ### Generated files
@@ -217,8 +224,8 @@ introduced.
 - P2d (stored totals, `finalize_document(uuid, text)`, issuing from the screen, issued
   view) is finished and merged. It was checked in a browser on 2026-10-14 as page text
   only: the layout has never been seen.
-- P2e (payments and status: database, plumbing, screens) is built. `docs/p2e-design.md`
-  is its design. `docs/p2e-design.md` is the P2e design.
+- P2e (payments and status) and P2f (devis to facture) are built. `docs/p2e-design.md`
+  is the P2e design. `docs/p2e-design.md` is the P2e design.
 - `docs/phase2-plan.md` is the historical plan; `docs/p2d-design.md` is the P2d design.
 
 ### Auth and the browser (SPA trade-offs)
