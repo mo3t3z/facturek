@@ -49,7 +49,7 @@ could swallow a click (`d664661`).
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
 | 7 | **Invitations** | Tokens, accepted by the invited user, membership created by a SECURITY DEFINER function. | Roles per action (today any member may finalize). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
-| 9 | **Deployment** | Hosted Supabase project, static host. | Two bullets in `CLAUDE.md` (security headers; hosted project configured like `supabase/config.toml`), no checklist yet. |
+| 9 | **Deployment** | Prepared on `checkpoint/deploy-prep`, not merged yet: checklist `docs/DEPLOYMENT.md`, security headers (`src/lib/securityHeaders.ts`, `dist/_headers`, checked under `npm run preview`). Nothing remote. | The accountant gate; the replay of every migration on an empty database (`db:reset`, needs consent); the host. |
 
 Also open, not attached to a checkpoint yet: payment corrections by reversal entry
 (payments are append-only, DF017); ownership transfer and account deletion (the last owner
@@ -66,7 +66,7 @@ Every command exited with code 0.
 
 | Command | What it proves | Needs Docker | Result of the run |
 |---|---|---|---|
-| `npm test` | Unit and component tests (Vitest) | no | 23 files, 1037 tests passed |
+| `npm test` | Unit and component tests (Vitest) | no | 24 files, 1044 tests passed |
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 312 tests; statements 79/79, branches 29/29, functions 31/31, lines 72/72 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |

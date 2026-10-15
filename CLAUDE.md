@@ -239,9 +239,13 @@ introduced.
   (supabase-js uses localStorage). Any XSS could therefore steal the session, and RLS
   would not help because the attacker would BE the user. Defences today: React escapes
   all text, `dangerouslySetInnerHTML` is banned, user text (names) is rendered as text only.
-- TODO at deployment: a strict Content-Security-Policy (no inline script, `connect-src`
-  limited to the Supabase project, `frame-ancestors 'none'`), plus `X-Content-Type-Options`
-  and `Referrer-Policy`, set by the static host (Vercel / Netlify headers).
+- Security headers live in ONE place, `src/lib/securityHeaders.ts`: a strict
+  Content-Security-Policy (scripts and styles from our origin only, no inline, `connect-src`
+  limited to our origin and the Supabase project, `frame-ancestors 'none'`),
+  `X-Content-Type-Options`, `Referrer-Policy: no-referrer` (the confirmation link carries a
+  token), `Permissions-Policy`. `npm run build` writes them to `dist/_headers`;
+  `npm run preview` serves the build with them. So no inline script and no inline `style`
+  attribute in the app. Deployment steps: `docs/DEPLOYMENT.md`.
 - Any "where to go next" value from the URL goes through `safeRedirectPath()`
   (`src/lib/safeRedirect.ts`): same-origin relative paths only.
 - Every backend error shown to the user goes through `errorMessageKey()`
