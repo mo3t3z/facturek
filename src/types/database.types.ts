@@ -115,6 +115,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"organization_invitations": {
+                  Row: {
+                    "accepted_at": string | null,"accepted_by": string | null,"created_at": string,"email": string,"expires_at": string,"id": string,"invited_by": string,"organization_id": string,"revoked_at": string | null,"role": Database["public"]['Enums']["org_role"],"token_hash": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"created_at"?: string,"email": string,"expires_at"?: string,"id"?: string,"invited_by": string,"organization_id": string,"revoked_at"?: string | null,"role": Database["public"]['Enums']["org_role"],"token_hash": string
+                  }
+                  Update: {
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"created_at"?: string,"email"?: string,"expires_at"?: string,"id"?: string,"invited_by"?: string,"organization_id"?: string,"revoked_at"?: string | null,"role"?: Database["public"]['Enums']["org_role"],"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "organization_invitations_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"organization_id": string,"role": Database["public"]['Enums']["org_role"],"user_id": string
@@ -209,7 +229,10 @@ isOneToOne: true
             [_ in never]: never
           }
           Functions: {
-            "cancel_devis":
+            "accept_invitation":
+{ Args: { "p_token": string }; Returns: string
+                           },
+"cancel_devis":
 { Args: { "p_devis_id": string }; Returns: {
               "buyer_address": string | null,
 "buyer_matricule_fiscal": string | null,
@@ -285,6 +308,11 @@ isOneToOne: true
         isOneToOne: true
         isSetofReturn: false
       } },
+"create_invitation":
+{ Args: { "p_email": string,"p_organization_id": string,"p_role": Database["public"]['Enums']["org_role"] }; Returns: {
+              "expires_at": string,"invitation_id": string,"token": string
+            }[]
+                           },
 "ensure_my_account":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
@@ -341,7 +369,10 @@ isOneToOne: true
         to: "payments"
         isOneToOne: true
         isSetofReturn: false
-      } }
+      } },
+"revoke_invitation":
+{ Args: { "p_invitation_id": string }; Returns: undefined
+                           }
           }
           Enums: {
             "document_status": "draft"|"sent"|"paid"|"cancelled","document_type": "devis"|"facture","org_role": "owner"|"admin"|"member","payment_method": "cash"|"virement"|"cheque"

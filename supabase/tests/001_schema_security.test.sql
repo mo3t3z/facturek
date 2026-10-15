@@ -220,8 +220,9 @@ select bag_eq(
   $$ select p.proname::text
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'EXECUTE') $$,
-  $$ values ('finalize_document'), ('ensure_my_account'), ('record_payment'), ('cancel_devis'), ('convert_devis_to_facture') $$,
-  'authenticated can execute exactly five functions in public: finalize_document, ensure_my_account, record_payment, cancel_devis, convert_devis_to_facture'
+  $$ values ('finalize_document'), ('ensure_my_account'), ('record_payment'), ('cancel_devis'), ('convert_devis_to_facture'),
+            ('create_invitation'), ('revoke_invitation'), ('accept_invitation') $$,
+  'authenticated can execute exactly eight functions in public: finalize_document, ensure_my_account, record_payment, cancel_devis, convert_devis_to_facture and the three invitation functions'
 );
 select ok(
   not has_function_privilege('anon', 'public.ensure_my_account()', 'EXECUTE')
