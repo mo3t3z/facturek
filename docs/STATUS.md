@@ -41,7 +41,7 @@ could swallow a click (`d664661`).
 
 | # | Checkpoint | Scope | Must be decided or known first |
 |---|---|---|---|
-| 1 | **P2e payments and status** | `record_payment` (the only API path, INSERT on `payments` revoked), automatic `paid`, `cancel_devis`. Codes reserved: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis that has a converted facture. | Payments are compared with `net_a_payer`, not `total_ttc`. The `paid_at` rules (TODO(accountant)). The existing tests that insert payments or set statuses by hand must be listed before anything changes. |
+| 1 | **P2e payments and status** | P2e1 (database) DONE on `checkpoint/p2e1-db`, not merged yet. Remaining: P2e2 plumbing (payload builders, API calls, DF018/DF019/DF021/DF024 messages, `test:e2e-payments`), P2e3 screens (payments block, cancel a devis). Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
 | 2 | **P2f conversion** | `convert_devis_to_facture(p_devis_id)`: atomic, copies the lines, sets `converted_from`. | Whether a devis may be converted into several factures (today nothing prevents it). |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
@@ -70,8 +70,8 @@ Every command exited with code 0.
 | `npm run test:coverage` | 100 % coverage of `src/lib/money` | no | 306 tests; statements 73/73, lines 68/68 |
 | `npm run lint` | ESLint | no | no finding |
 | `npm run typecheck` | `tsc -b` | no | no error |
-| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths | yes | 10 files, 670 tests, PASS |
-| `npm run test:concurrency` | Real parallel connections: numbering, races, expected total | yes | 9 scenarios (0 to 8), 46 checks passed |
+| `npm run test:db` | pgTAP: schema, RLS, guards, finalize, totals, text lengths, payments | yes | 11 files, 720 tests, PASS |
+| `npm run test:concurrency` | Real parallel connections: numbering, races, expected total, payments | yes | 10 scenarios (0 to 9), 52 checks passed |
 | `npm run test:e2e-auth` | Signup, confirmation, login, recovery through the local APIs | yes | 5 steps, 36 checks passed |
 | `npm run test:e2e-settings` | Settings through REST: numerics as text, RLS isolation | yes | 5 steps, 26 checks passed |
 | `npm run test:e2e-documents` | Drafts and finalize through REST, including PGRST202 and DF009 | yes | 6 steps, 42 checks passed |

@@ -123,6 +123,14 @@ Package manager: npm. Supabase CLI is a devDependency (`npx supabase ...`).
   privilege for `anon` / `authenticated`.
 - Non-draft documents are immutable at the DB level (triggers). Corrections will be
   credit notes (avoirs) in a later phase. "Overdue" is derived, never stored.
+- Payments: the API role has no INSERT on `payments`; `public.record_payment(p_document_id,
+  p_amount text, p_paid_at, p_method)` is its only path (amount as TEXT, like the expected
+  total of finalize). The sum never exceeds `net_a_payer` (DF018) and `paid` is set by the
+  trigger `mark_paid_when_covered` when it is reached, never by hand (DF019): both bind every
+  role. "Remaining" and "partly paid" are derived, never stored. `paid_at` has no rule yet:
+  TODO(accountant).
+- A devis is cancelled only through `public.cancel_devis(p_devis_id)`, never once a facture
+  was converted from it (DF021, every role).
 - Two layers, on purpose. RLS policies and column privileges bind the API role only.
   Triggers and CHECK constraints bind EVERY role (service role, SQL editor). A rule that
   protects issued documents, items or payments must exist as a trigger or a constraint.
@@ -164,8 +172,8 @@ introduced.
 
 | Code  | Meaning | Where raised |
 |-------|---------|--------------|
-| DF000 | Not authenticated: the call carries no user id | `public.finalize_document()`, `public.ensure_my_account()` |
-| DF001 | Document not found. Deliberately the same error for an id that does not exist and for a document of another organization | `public.finalize_document()` |
+| DF000 | Not authenticated: the call carries no user id | `public.finalize_document()`, `public.ensure_my_account()`, `public.record_payment()`, `public.cancel_devis()` |
+| DF001 | Document not found. Deliberately the same error for an id that does not exist and for a document of another organization | `public.finalize_document()`, `public.record_payment()`, `public.cancel_devis()` |
 | DF002 | Document is not a draft (already finalized) | `public.finalize_document()` |
 | DF003 | Document has no client | `public.finalize_document()` |
 | DF004 | Document has no items | `public.finalize_document()` |
@@ -176,15 +184,19 @@ introduced.
 | DF009 | The expected total differs from the computed total: the text sent as `p_expected_net_a_payer` is not the net à payer Postgres computed (the document or the settings changed since the screen showed it, or the value is not text with 3 decimals) | `public.finalize_document()` |
 | DF010 | A non-draft document cannot be deleted | `private.guard_documents()` (trigger on `documents`) |
 | DF011 | A non-draft document is frozen: a column other than `status` / `updated_at` was changed (the message names the columns) | `private.guard_documents()` |
-| DF012 | Status transition not allowed. Allowed: draft → sent; facture sent → paid; devis sent → cancelled | `private.guard_documents()` |
+| DF012 | Status transition not allowed. Allowed: draft → sent; facture sent → paid; devis sent → cancelled | `private.guard_documents()`, `public.cancel_devis()` |
 | DF013 | `converted_from` rule violated: only a facture, only from a devis that is neither draft nor cancelled, never from itself | `private.guard_document_conversion()` (trigger on `documents`) |
 | DF014 | The items of a non-draft document cannot be inserted, updated or deleted | `private.guard_document_items()` (trigger on `document_items`) |
 | DF015 | An item cannot be moved to another document or organization | `private.guard_document_items()` |
-| DF016 | A payment can only be recorded on a facture whose status is `sent` | `private.guard_payments()` (trigger on `payments`) |
+| DF016 | A payment can only be recorded on a facture whose status is `sent` | `private.guard_payments()` (trigger on `payments`), `public.record_payment()` |
 | DF017 | Payments are append-only: no UPDATE, no DELETE, for any role | `private.guard_payments()` |
+| DF018 | Overpayment: the payments of a facture would exceed its `net_a_payer` (TTC + timbre), for every role | `private.guard_payments()` |
+| DF019 | A facture becomes `paid` only when its payments cover its `net_a_payer`, for every role | `private.guard_documents()` |
 | DF020 | Membership rule violated: the last owner cannot be removed or demoted; `organization_id` / `user_id` of a membership cannot change | `private.guard_organization_members()` (trigger on `organization_members`) |
+| DF021 | A devis that a facture was converted from (`converted_from`) cannot be cancelled, for every role | `private.guard_documents()` |
 | DF022 | The total is zero: `total_ttc` (HT + TVA) is 0, with or without a timbre. TODO(accountant) | `public.finalize_document()` |
 | DF023 | The total exceeds the maximum: the net à payer does not fit `numeric(12,3)` | `public.finalize_document()` |
+| DF024 | The amount of a payment is not a positive text with 3 decimals (`"250.000"`): `"250"`, `"1e3"`, `"2,5"`, zero and NULL are refused before any cast | `public.record_payment()` |
 | DF040 | `organization_id` of a row cannot be changed | `private.prevent_organization_change()` (trigger on `clients`) |
 
 ### Generated files
@@ -202,8 +214,8 @@ introduced.
 - P2d (stored totals, `finalize_document(uuid, text)`, issuing from the screen, issued
   view) is finished and merged. It was checked in a browser on 2026-10-14 as page text
   only: the layout has never been seen.
-- Codes reserved for P2e: DF018 overpayment, DF019 paid coverage, DF021 cancel a devis
-  that has a converted facture.
+- P2e1 (payments and status in the database) is built; P2e2 (plumbing) and P2e3 (screens)
+  remain. `docs/p2e-design.md` is the P2e design.
 - `docs/phase2-plan.md` is the historical plan; `docs/p2d-design.md` is the P2d design.
 
 ### Auth and the browser (SPA trade-offs)
