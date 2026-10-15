@@ -47,7 +47,7 @@ could swallow a click (`d664661`).
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Design DRAFT in `docs/avoir-print-design.md` (option proposed: a separate `avoir` type with its own series), blocked on questions C1 to C6. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Design DRAFT in `docs/avoir-print-design.md` (browser print first), blocked on questions C7 to C12. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
-| 7 | **Invitations and roles** | Design approved 2026-10-15 (`docs/roles-design.md`). R1 roles per action MERGED into `main` at `f8b9f91` (migration `20261015180001`, DF026), applied to the LOCAL database only, NOT deployed. R-10 (exactly one owner, transfer only through `transfer_ownership()`) is APPROVED but NOT implemented: today an owner can still name a second owner. R2 (invitations, database only: migrations `20261016090001` and the fix `20261016090002`, DF027 to DF029) DONE on `checkpoint/r2-invitations-db`, NOT merged (merge needs approval). R3 to R5 (screens, several organizations, ownership transfer, leaving) NOT started. | Whether a facture must be issued by a named person (accountant). |
+| 7 | **Invitations and roles** | Design approved 2026-10-15 (`docs/roles-design.md`). R1 roles per action MERGED into `main` at `f8b9f91` (migration `20261015180001`, DF026), applied to the LOCAL database only, NOT deployed. R-10 (exactly one owner, transfer only through `transfer_ownership()`) is APPROVED but NOT implemented: today an owner can still name a second owner. R2 (invitations, database only: migrations `20261016090001` and the fix `20261016090002`, DF027 to DF029) MERGED into `main` at `111c394`, applied to the LOCAL database only, NOT deployed. Reproducibility checked: every migration replayed from empty on a throwaway isolated stack, pgTAP, concurrency and e2e passed there, schema identical to the working database. R3 to R5 (screens, several organizations, ownership transfer, leaving) NOT started. | Whether a facture must be issued by a named person (accountant). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
 | 9 | **Deployment** | Prepared on `checkpoint/deploy-prep`, not merged yet: checklist `docs/DEPLOYMENT.md`, security headers (`src/lib/securityHeaders.ts`, `dist/_headers`, checked under `npm run preview`). Nothing remote. | The accountant gate; the replay of every migration on an empty database (`db:reset`, needs consent); the host. |
 
@@ -196,6 +196,14 @@ issued facture, tax_settings, organizations -> 0 rows; convert_devis_to_facture 
 (R-2); no data changed. As the owner (DOM only, no screenshot): every button and form
 still there (8 enabled fields and both save buttons in Paramètres, "Émettre" enabled,
 the payment form present). The layout of these member screens is still to be SEEN.
+
+R2 (invitations, database only), 2026-10-16: no screen exists, so there is no browser
+check; everything was checked through pgTAP, the concurrency script, REST calls and the
+container logs. The local database holds one REVOKED invitation (created over REST by the
+R1 owner for the member's address, to check that no token reaches a log). The local
+containers were recreated once to drop four already-used tokens from their logs (data kept:
+`supabase stop` keeps the volumes). `scripts/security-invitation-probe.mjs` is an untracked
+local probe that was not written in this session and is not part of the repository.
 
 Still pending:
 - An organization without a tax settings row, on a FACTURE draft (needs deleting that row
