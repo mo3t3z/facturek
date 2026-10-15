@@ -47,7 +47,7 @@ could swallow a click (`d664661`).
 | 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Design DRAFT in `docs/avoir-print-design.md` (option proposed: a separate `avoir` type with its own series), blocked on questions C1 to C6. Accounting rules, numbering series, link to the corrected facture. |
 | 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Design DRAFT in `docs/avoir-print-design.md` (browser print first), blocked on questions C7 to C12. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
-| 7 | **Invitations** | Tokens, accepted by the invited user, membership created by a SECURITY DEFINER function. | Roles per action (today any member may finalize). |
+| 7 | **Invitations** | Design in `docs/roles-design.md` (roles per action, invitations by link, several organizations, ownership transfer), waiting for the approval of R-1 to R-9. | The decisions R-1 to R-9. Whether a facture must be issued by a named person (accountant). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
 | 9 | **Deployment** | Prepared on `checkpoint/deploy-prep`, not merged yet: checklist `docs/DEPLOYMENT.md`, security headers (`src/lib/securityHeaders.ts`, `dist/_headers`, checked under `npm run preview`). Nothing remote. | The accountant gate; the replay of every migration on an empty database (`db:reset`, needs consent); the host. |
 
