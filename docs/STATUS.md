@@ -44,8 +44,8 @@ could swallow a click (`d664661`).
 | 1 | **P2e payments and status** | DONE, merged into `main` at `f231325`. Design: `docs/p2e-design.md`. | The `paid_at` rules (TODO(accountant)); P2e ships without them (decision E-6). |
 | 2 | **P2f conversion** | DONE, merged into `main` at `bb00017`: `convert_devis_to_facture(p_devis_id)` (one transaction: draft facture, copy of the lines, link), ONE facture per devis (DF025 + unique index), "Créer la facture" on a sent devis. | Decided 2026-10-15: one facture per devis. |
 | 3 | **Free-text length CHECKs** | DONE, merged into `main` at `eff0d00` (migration `20261015100001`). Limits = the screens'. | - |
-| 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Not designed. Accounting rules, numbering series, link to the corrected facture. |
-| 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Not planned in detail. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
+| 4 | **Avoir (credit note)** | The only way to correct or cancel a numbered facture. | Design DRAFT in `docs/avoir-print-design.md` (option proposed: a separate `avoir` type with its own series), blocked on questions C1 to C6. Accounting rules, numbering series, link to the corrected facture. |
+| 5 | **PDF / print (document de présentation)** | A printable facture and devis. | Design DRAFT in `docs/avoir-print-design.md` (browser print first), blocked on questions C7 to C12. Mandatory mentions (TODO(accountant)); whether per-line totals must then be stored. |
 | 6 | **Dashboard** | Not planned in detail. | What it should show. |
 | 7 | **Invitations** | Tokens, accepted by the invited user, membership created by a SECURITY DEFINER function. | Roles per action (today any member may finalize). |
 | 8 | **TTN / TEIF (El Fatoora)** | TTN fields writable after issue, TEIF export as a separate module. | Every external fact is unverified (see section d). Nothing may be built on them yet. |
